@@ -1,0 +1,59 @@
+import re
+
+def classify_utm(utm):
+    if pd.isna(utm):
+        return "OTHERS"
+    
+    utm = utm.lower().strip()
+    
+    # Google Campaigns
+    if re.search(r'\bgoogle[\-_ ]?(pmax|search)?\b', utm):
+        return "GOOGLE"
+    
+    # Facebook / Meta
+    if re.search(r'\bfacebook\b|\bmeta\b|\bfb\b', utm):
+        return "FACEBOOK"
+    
+    # AEM Campaigns
+    if re.search(r'\baem\b', utm) or re.search(r'aem[-_]?android|aem[-_]?windows|aem[-_]?ios|aem[-_]?linux|aem[-_]?10s', utm):
+        return "AEM"
+    
+    # Hero App
+    if 'heroapp' in utm:
+        return "HERO_APP"
+    
+    # Swiggy, Zepto, Food Platforms
+    if 'swiggy' in utm or 'zepto' in utm:
+        return "FOOD_DELIVERY"
+    
+    # Programmatic / Digital Direct
+    if 'programmatic' in utm or 'digital direct' in utm:
+        return "PROGRAMMATIC"
+    
+    # WhatsApp / IG
+    if 'whatsapp' in utm or 'ig' in utm:
+        return "WHATSAPP_IG"
+    
+    # News / Autoportal
+    if 'news' in utm or 'autoportal' in utm:
+        return "MEDIA"
+    
+    # Organic
+    if 'organic' in utm:
+        return "ORGANIC"
+    
+    # CWS / HOT Leads
+    if 'cws' in utm:
+        return "CWS"
+    if 'hot leads' in utm:
+        return "HOT_LEADS"
+    
+    # Any other known short tokens
+    if utm in ['google', 'facebook', 'meta', 'fb', 'ig', 'news', 'swiggy', 'zepto']:
+        return utm.upper()
+    
+    # Catch all
+    return "OTHERS"
+
+# Apply on your dataframe
+df['utm_cleaned'] = df['utm_source'].apply(classify_utm)
