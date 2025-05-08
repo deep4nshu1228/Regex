@@ -1,0 +1,61 @@
+import re
+import pandas as pd
+import numpy as np
+
+# Standard list of Indian states and UTs in uppercase
+standard_states = {
+    'ANDHRA PRADESH': [r'andhra.*', r'\bAP\b'],
+    'ARUNACHAL PRADESH': [r'arunachal.*', r'\bARP\b'],
+    'ASSAM': [r'assam.*', r'\bAS\b'],
+    'BIHAR': [r'bihar.*', r'\bBH\b'],
+    'CHHATTISGARH': [r'chh?att?isgarh.*', r'\bCG\b'],
+    'GOA': [r'goa.*'],
+    'GUJARAT': [r'gujarat.*', r'\bGJ\b'],
+    'HARYANA': [r'haryana.*', r'\bHR\b'],
+    'HIMACHAL PRADESH': [r'himachal.*', r'\bHP\b'],
+    'JHARKHAND': [r'jharkhand.*', r'\bJH\b'],
+    'KARNATAKA': [r'karnataka.*', r'\bKA\b', r'\bKAR\b'],
+    'KERALA': [r'kerala.*', r'\bKER\b'],
+    'MADHYA PRADESH': [r'madhya.*', r'\bMP\b', r'\bMPR\b'],
+    'MAHARASHTRA': [r'maharashtra.*', r'\bMAH\b'],
+    'MANIPUR': [r'manipur.*'],
+    'MEGHALAYA': [r'meghalaya.*', r'\bMGH\b'],
+    'MIZORAM': [r'mizoram.*', r'\bMZ\b'],
+    'NAGALAND': [r'nagaland.*', r'\bNG\b'],
+    'ODISHA': [r'odisha.*', r'orissa.*', r'orrisa.*', r'\bOD\b', r'\bOR\b'],
+    'PUNJAB': [r'punjab.*', r'\bPB\b'],
+    'RAJASTHAN': [r'rajasthan.*', r'\bRJ\b'],
+    'SIKKIM': [r'sikkim.*'],
+    'TAMIL NADU': [r'tamil.*', r'\bTN\b'],
+    'TELANGANA': [r'telangana.*', r'\bTLG\b', r'\bTG\b'],
+    'TRIPURA': [r'tripura.*', r'\bTR\b', r'\bTRI\b'],
+    'UTTAR PRADESH': [r'uttar[\s_]*pradesh.*', r'\bUP\b'],
+    'UTTARAKHAND': [r'uttarakhand.*', r'\bUK\b'],
+    'WEST BENGAL': [r'west[\s_]*bengal.*', r'\bWB\b'],
+
+    # Union Territories
+    'ANDAMAN AND NICOBAR': [r'andaman.*', r'\bAN\b'],
+    'CHANDIGARH': [r'chandigarh.*'],
+    'DADRA AND NAGAR HAVELI': [r'dadra.*nagar.*haveli.*'],
+    'DAMAN AND DIU': [r'daman.*diu.*'],
+    'DELHI': [r'delhi.*', r'\bDEL\b'],
+    'JAMMU AND KASHMIR': [r'jammu.*kashmir.*', r'\bJK\b'],
+    'LADAKH': [r'ladakh.*', r'\bLDK\b'],
+    'LAKSHADWEEP': [r'lakshadweep.*'],
+    'PUDUCHERRY': [r'puducherry.*', r'pondicherry.*', r'\bPY\b'],
+}
+
+
+def normalize_state(value):
+    if pd.isnull(value) or str(value).strip() == '' or str(value).strip().lower() in ['all', 'select state', 'n.eastern states']:
+        return 'OTHERS'
+    value = str(value).lower().strip()
+    for state, patterns in standard_states.items():
+        for pattern in patterns:
+            if re.fullmatch(pattern, value, re.IGNORECASE):
+                return state
+    return 'OTHERS'
+
+
+
+df['state_cleaned'] = df['state'].apply(normalize_state)
