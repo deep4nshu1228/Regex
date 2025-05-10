@@ -1,0 +1,67 @@
+import re
+import pandas as pd
+
+def classify_utm_medium(utm):
+    if pd.isna(utm):
+        return "OTHERS"
+
+    utm = utm.lower().strip()
+
+    # NEWS_MEDIA
+    if re.search(r'\b(zee[\w\-]*|aajtak|abp|dainik|news18|live[_\-]?hindustan|eenadu|manorma|ananda[\s]?bazaar|oneindia|dnaindia|asianet|lokmat)\b', utm):
+        return "NEWS_MEDIA"
+
+    # VIDEO_STREAMING
+    if re.search(r'\b(youtube(_shorts|_streaming|_rural|_ctv)?|hotstar|jiocinema|cricbuzz|fancode|spotify|playground)\b', utm):
+        return "VIDEO_STREAMING"
+
+    # AUTOMOTIVE_PORTALS
+    if re.search(r'\b(bikedekho|zigwheels|bikewale|91wheels|autoportal|bikehale)\b', utm):
+        return "AUTOMOTIVE_PORTALS"
+
+    # MESSAGING_APPS
+    if re.search(r'\b(whatsapp[\+]?business?|share[\s]?chat)\b', utm):
+        return "MESSAGING_APPS"
+
+    # PAID_MEDIA
+    if re.search(r'\b(cpl|cpn|cpc|perf|demandgen|demangen|paid|dv360|adnextmedia|display|search|discovery|pmax)\b', utm):
+        return "PAID_MEDIA"
+
+    # GOOGLE
+    if re.search(r'\b(google|pmax|search)\b', utm):
+        return "GOOGLE"
+
+    # FACEBOOK
+    if re.search(r'\b(facebook|meta|fb)\b', utm):
+        return "FACEBOOK"
+
+    # AEM
+    if re.search(r'\baem[\w\-]*\b', utm) or re.search(r'\brx[_\s\-]?hmc\b', utm):
+        return "AEM"
+
+    # ORGANIC_FESTIVE
+    if re.search(r'\bfestive[\w\s\-]*|organic[\w\-]*\b', utm):
+        return "ORGANIC_FESTIVE"
+
+    # APP_ENGAGEMENT
+    if re.search(r'\b(pushnotification|appdashboard|mobileapp|shs|chs)\b', utm):
+        return "APP_ENGAGEMENT"
+
+    # DELIVERY_APPS
+    if re.search(r'\b(swiggy|zepto|delivery[_\-]?app)\b', utm):
+        return "DELIVERY_APPS"
+
+    # CORPORATE_LEADS
+    if re.search(r'\b(corporate[\s\-]?leads|cus[\s\-]?leads|rnf[_\-]?bls|rnf)\b', utm):
+        return "CORPORATE_LEADS"
+
+    # YOUTUBE_VARIANTS
+    if re.search(r'\byoutube[_\-]?(shorts|rural|streaming|ctv)\b', utm):
+        return "YOUTUBE_VARIANTS"
+
+    # INTERNAL_TOOLS
+    if re.search(r'\b(test|internal|guestcatalogue|marketing|fixed|print|traffic|social)\b', utm):
+        return "INTERNAL_TOOLS"
+
+    # Catch-all for unclassified or low-frequency items
+    return "OTHERS"
