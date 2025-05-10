@@ -1,4 +1,12 @@
+import pandas as pd
 import re
+
+# List of high-frequency categories (>= 300)
+HIGH_FREQ_CATEGORIES = {
+    "GOOGLE", "AEM", "FACEBOOK", "SWIGGY", "ZEPTO", "DIGITAL DIRECT",
+    "ONS", "HERO_APP", "ORGANIC_FESTIVE", "PROGRAMMATIC", "COMMUTER_UPGRADE",
+    "WHATSAPP", "IG", "NEWS", "HOT LEADS"
+}
 
 def classify_utm(utm):
     if pd.isna(utm):
@@ -6,54 +14,69 @@ def classify_utm(utm):
     
     utm = utm.lower().strip()
     
-    # Google Campaigns
-    if re.search(r'\bgoogle[\-_ ]?(pmax|search)?\b', utm):
+    # GOOGLE Campaigns
+    if re.search(r'\bgoogle[\-_]?(ads|pmax|search)?\b', utm):
         return "GOOGLE"
     
-    # Facebook / Meta
-    if re.search(r'\bfacebook\b|\bmeta\b|\bfb\b', utm):
+    # FACEBOOK / META
+    if re.search(r'\b(facebook|meta|fb)[\w\-]*\b', utm):
         return "FACEBOOK"
     
-    # AEM Campaigns
-    if re.search(r'\baem\b', utm) or re.search(r'aem[-_]?android|aem[-_]?windows|aem[-_]?ios|aem[-_]?linux|aem[-_]?10s', utm):
+    # AEM Campaigns (broadened coverage)
+    if re.search(r'\baem[\w\-]*\b', utm) or re.search(r'\b(aem|otp|homepage|mac[\-_]?os)\b', utm):
         return "AEM"
     
-    # Hero App
-    if 'heroapp' in utm:
+    # HERO App
+    if re.search(r'\bhero[\-_]?app\b', utm):
         return "HERO_APP"
     
-    # Swiggy, Zepto, Food Platforms
-    if 'swiggy' in utm or 'zepto' in utm:
-        return "FOOD_DELIVERY"
+    # WHATSAPP
+    if re.search(r'\bwhatsapp(\+?business)?\b', utm):
+        return "WHATSAPP"
     
-    # Programmatic / Digital Direct
-    if 'programmatic' in utm or 'digital direct' in utm:
+    # IG (Instagram)
+    if re.search(r'\big\b', utm):
+        return "IG"
+    
+    # SWIGGY
+    if re.search(r'\bswiggy\b', utm):
+        return "SWIGGY"
+    
+    # ZEPTO
+    if re.search(r'\bzepto\b', utm):
+        return "ZEPTO"
+    
+    # DIGITAL DIRECT — allow typos like "digitl", "dirct", etc.
+    if re.search(r'digi\w*\s*dir\w*', utm):
+        return "DIGITAL DIRECT"
+    
+    # COMMUTER_UPGRADE
+    if re.search(r'commut\w*|upgrad\w*', utm):
+        return "COMMUTER_UPGRADE"
+    
+    # ONS
+    if re.search(r'\bons\b', utm):
+        return "ONS"
+    
+    # ORGANIC FESTIVE
+    if re.search(r'organi\w*\s*festi\w*', utm):
+        return "ORGANIC_FESTIVE"
+    
+    # PROGRAMMATIC
+    if re.search(r'program\w*', utm):
         return "PROGRAMMATIC"
     
-    # WhatsApp / IG
-    if 'whatsapp' in utm or 'ig' in utm:
-        return "WHATSAPP_IG"
+    # HOT LEADS
+    if re.search(r'hot\w*\s*lead\w*', utm):
+        return "HOT LEADS"
     
-    # News / Autoportal
-    if 'news' in utm or 'autoportal' in utm:
-        return "MEDIA"
+    # NEWS
+    if re.search(r'\bnews\w*|newsp\w*\b', utm):
+        return "NEWS"
     
-    # Organic
-    if 'organic' in utm:
-        return "ORGANIC"
-    
-    # CWS / HOT Leads
-    if 'cws' in utm:
-        return "CWS"
-    if 'hot leads' in utm:
-        return "HOT_LEADS"
-    
-    # Any other known short tokens
-    if utm in ['google', 'facebook', 'meta', 'fb', 'ig', 'news', 'swiggy', 'zepto']:
-        return utm.upper()
-    
-    # Catch all
-    return "OTHERS"
+    # SMS
+    if re.search(r'\bsms\b', utm):
+        return "SMS"
 
-# Apply on your dataframe
-df['utm_cleaned'] = df['utm_source'].apply(classify_utm)
+    # If not in known high-frequency categories, treat as OTHERS
+    return "OTHERS"
