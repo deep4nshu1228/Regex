@@ -1,0 +1,107 @@
+-- Step 1: Resolve lead and clickstream connection using visitor_id and date
+WITH resolved_leads AS (
+  SELECT 
+    l.adobe_id AS lead_id,
+    l.lead_timestamp AS lead_ts,
+    c.visitor_id,
+    TRY_TO_DATE(c.date, 'YYYY-MM-DD') AS event_date
+  FROM leads_table l
+  LEFT JOIN webclickstream_table c
+    ON l.adobe_id = c.lead_id
+),
+
+-- Step 2: Filter and transform clickstream events using visitor_id and event_date
+clickstream_user_activity AS (
+  SELECT 
+    r.lead_id,
+    c.visitor_id,
+    r.lead_ts,
+    TRY_TO_DATE(c.date, 'YYYY-MM-DD') AS event_date,
+    c.page_url,
+
+    -- Cleaned percent viewed
+    CASE 
+      WHEN TRY_CAST(c.percent_page_viewed AS FLOAT) BETWEEN 0 AND 100 THEN TRY_CAST(c.percent_page_viewed AS FLOAT)
+      WHEN TRY_CAST(c.percent_page_viewed AS FLOAT) > 100 THEN 100
+      WHEN TRY_CAST(c.percent_page_viewed AS FLOAT) < 0 THEN 0
+      ELSE NULL
+    END AS percent_page_viewed,
+
+    -- Mapped time groups to estimated seconds
+    CASE 
+      WHEN time_spent_on_page ILIKE '%<15%' THEN 7.5
+      WHEN time_spent_on_page ILIKE '%15-30%' THEN 22.5
+      WHEN time_spent_on_page ILIKE '%30-60%' THEN 45
+      WHEN time_spent_on_page ILIKE '%1-3%' THEN 120
+      WHEN time_spent_on_page ILIKE '%3-5%' THEN 240
+      WHEN time_spent_on_page ILIKE '%5-10%' THEN 450
+      WHEN time_spent_on_page ILIKE '%10-15%' THEN 750
+      WHEN time_spent_on_page ILIKE '%15-20%' THEN 1050
+      WHEN time_spent_on_page ILIKE '%20-30%' THEN 1500
+      WHEN time_spent_on_page ILIKE '%>30%' THEN 2000
+      ELSE 0
+    END AS estimated_seconds,
+
+    -- Page views as integer
+    COALESCE(TRY_CAST(c.page_views AS INTEGER), 0) AS page_views
+  FROM webclickstream_table c
+  JOIN resolved_leads r
+    ON c.visitor_id = r.visitor_id
+  WHERE TRY_TO_DATE(c.date, 'YYYY-MM-DD') <= DATE(r.lead_ts)
+),
+
+-- Step 3: Identify distinct visits and aggregate per-visit metrics
+visit_metrics AS (
+  SELECT 
+    lead_id,
+    visitor_id,
+    event_date,
+    SUM(estimated_seconds) AS total_time_per_visit,
+    SUM(page_views) AS total_page_views_per_visit
+  FROM clickstream_user_activity
+  GROUP BY lead_id, visitor_id, event_date
+),
+
+-- Step 4: Aggregate user activity per lead using accurate visit-level metrics
+aggregated_web_metrics AS (
+  SELECT
+    lead_id,
+    COUNT(*) AS total_visits,
+    AVG(total_time_per_visit) AS avg_time_spent_per_visit,
+    SUM(total_time_per_visit) AS total_time_spent_before_form,
+    MAX(total_time_per_visit) AS max_time_spent_single_page,
+    COALESCE((SELECT AVG(percent_page_viewed) FROM clickstream_user_activity WHERE clickstream_user_activity.lead_id = v.lead_id), 0) AS avg_percent_page_viewed,
+    (SELECT COUNT(DISTINCT page_url) FROM clickstream_user_activity WHERE clickstream_user_activity.lead_id = v.lead_id) AS unique_pages_viewed,
+    AVG(total_page_views_per_visit) AS avg_page_views_per_visit,
+    SUM(total_page_views_per_visit) AS total_page_views
+  FROM visit_metrics v
+  GROUP BY lead_id
+)
+
+-- Final result joining back with leads
+SELECT
+  l.*,
+  a.total_visits,
+  COALESCE(a.avg_time_spent_per_visit, 0) AS avg_time_spent_per_visit,
+  COALESCE(a.total_time_spent_before_form, 0) AS total_time_spent_before_form,
+  COALESCE(a.max_time_spent_single_page, 0) AS max_time_spent_single_page,
+  a.avg_percent_page_viewed,
+  a.unique_pages_viewed,
+  COALESCE(a.avg_page_views_per_visit, 0) AS avg_page_views_per_visit,
+  COALESCE(a.total_page_views, 0) AS total_page_views
+FROM leads_table l
+LEFT JOIN aggregated_web_metrics a
+  ON l.adobe_id = a.lead_id;
+
+
+The query is now updated to ensure that:
+
+Each visit is determined by visitor_id + date combo.
+
+Averages are calculated at the visit level, not across raw events.
+
+If there’s only one record and its values are NULL, the average still evaluates to 0 instead of skewing or failing.
+
+
+Would you like to include UTM source or campaign-wise segmentation next?
+
