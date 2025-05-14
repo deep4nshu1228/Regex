@@ -1,0 +1,51 @@
+WITH unique leads AS (
+
+SELECT
+
+mobile_number, MIN(TO DATE(lead_date, "YYYY-MM-DD')) AS first lead_date FROM lead table WHERE TO DATE(lead_date, 'YYYY-MM-DO') > DATE '2024-05-01' GROUP BY mobile_number
+
+enquiries_in_90_days AS (
+
+SELECT
+
+ul.mobile_number, ul.first_lead_date, e.status, TO_DATE(e.open_date, 'YYYY-MM-DD') AS enquiry date FROM unique leads ul ON ul.mobile nusbere.mobile_number AND TO DATE(e.open_date, 'YYYY-MM-DD') BETHEEN ul.first_lead_date AND ul.first lead_date INTERVAL '90 day
+
+INNER JOIN enquiry_table e
+
+WHERE e.status IS NOT NULL
+
+purchases_in_90_days AS (
+
+SELECT
+
+ul.mobile_number, ul.first_lead_date, TO_DATE(c.first_sale_date, 'WWY-MM-DD') AS purchase_date
+
+FROM unique leads ul
+
+INNER JOIN customer profile c
+
+ON ul.mobile number c.mobile_number
+
+AND TO DATE(c.First sale date, 'WYY-181-00") BETWEEN ul.first_lead_date AND ul.first lead date + INTERVAL '90 day'
+
+),
+
+direct_to_purchase AS (
+
+SELECT p.mobile_number FROM purchases in_90_days p LEFT JOIN enquiries_in_90_days e ON p.mobile number e.mobile_number WHERE e.mobile number IS MULL
+
+enquiry_to_purchase AS (
+
+SELECT DISTINCT p.mobile number
+
+FROM purchases_in_90_days p
+
+INNER JOIN enquiries_in_90_days e
+
+ON p.mobile number e.mobile number
+
+SELECT
+
+(SELECT COUNT(*) FROM direct_to_purchase) AS direct_to_jpurchase_count,
+
+(SELECT COUNT(*) FROM enquiry to_purchase) AS enquiry_to_purchase_count;
