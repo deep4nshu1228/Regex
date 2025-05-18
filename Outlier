@@ -1,0 +1,545 @@
+# Propensity Model Comparison on Imbalanced Data
+
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, precision_recall_curve, auc, average_precision_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.tree import DecisionTreeClassifier
+import xgboost as xgb
+import joblib
+import warnings
+warnings.filterwarnings('ignore')
+
+# 1. Load the data
+# Assuming your data is in a CSV file. Modify this if your data is in a different format
+# df = pd.read_csv('your_data.csv')
+
+# For illustration purposes only, replace with your actual data loading code
+# This is just a placeholder for demonstration
+df = pd.DataFrame({
+    'Bike_model': np.random.choice(['A', 'B', 'C'], 1000),
+    'Total_website_visit': np.random.randint(1, 10, 1000),
+    'Avg_time_spent_per_visit': np.random.normal(100, 30, 1000),
+    'Total_time_spent_before_form_submission': np.random.normal(300, 100, 1000),
+    'Max_time_spent_on_a_single_page': np.random.normal(60, 20, 1000),
+    'Max_time_spent_page_url': np.random.randint(1, 5, 1000),
+    'Unique_pages_viewed': np.random.randint(1, 10, 1000),
+    'Avg_pages_viewed_per_visit': np.random.normal(3, 1, 1000),
+    'Total_page_views': np.random.randint(1, 20, 1000),
+    'State': np.random.choice(['CA', 'NY', 'TX'], 1000),
+    'Utm_source': np.random.choice(['google', 'facebook', 'direct'], 1000),
+    'Target': np.random.choice([0, 1], 1000, p=[0.985, 0.015])  # Imbalanced class distribution
+})
+
+# 2. Data Overview
+print("Dataset Shape:", df.shape)
+print("\nClass Distribution:")
+print(df['Target'].value_counts())
+print(f"Class Imbalance Ratio: 1:{df['Target'].value_counts()[0]/df['Target'].value_counts()[1]:.1f}")
+
+# Check for missing values
+print("\nMissing Values:")
+print(df.isnull().sum())
+
+# 2.1 Outlier Detection and Removal
+print("\n=============== Outlier Detection and Removal ===============")
+# Only detect outliers in numerical features
+numeric_columns = ['Total_website_visit', 'Avg_time_spent_per_visit', 
+                  'Total_time_spent_before_form_submission', 'Max_time_spent_on_a_single_page',
+                  'Unique_pages_viewed', 'Avg_pages_viewed_per_visit', 'Total_page_views']
+
+# Visualize distributions before outlier removal
+plt.figure(figsize=(15, 10))
+for i, col in enumerate(numeric_columns):
+    plt.subplot(3, 3, i+1)
+    sns.boxplot(x=df[col])
+    plt.title(f'Boxplot of {col}')
+plt.tight_layout()
+plt.show()
+
+# Function to detect outliers using IQR method
+def detect_outliers_iqr(df, col, factor=1.5):
+    Q1 = df[col].quantile(0.25)
+    Q3 = df[col].quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - factor * IQR
+    upper_bound = Q3 + factor * IQR
+    outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)].index
+    return outliers, lower_bound, upper_bound
+
+# Detect and summarize outliers using IQR method
+outlier_summary = {}
+for col in numeric_columns:
+    outliers, lower, upper = detect_outliers_iqr(df, col)
+    outlier_percent = len(outliers) / len(df) * 100
+    outlier_summary[col] = {
+        'count': len(outliers),
+        'percentage': outlier_percent,
+        'lower_bound': lower,
+        'upper_bound': upper
+    }
+
+# Display outlier summary
+outlier_df = pd.DataFrame.from_dict(outlier_summary, orient='index')
+print("Outlier Summary (IQR Method):")
+print(outlier_df)
+
+# Decide on outlier treatment strategy - we'll use capping (Winsorization)
+# Alternative approaches could be removing outliers or using robust models
+
+print("\nApplying Winsorization to cap outliers...")
+df_clean = df.copy()
+
+for col in numeric_columns:
+    lower = outlier_summary[col]['lower_bound']
+    upper = outlier_summary[col]['upper_bound']
+    # Cap the outliers
+    df_clean[col] = df_clean[col].clip(lower=lower, upper=upper)
+
+# Visualize distributions after outlier treatment
+plt.figure(figsize=(15, 10))
+for i, col in enumerate(numeric_columns):
+    plt.subplot(3, 3, i+1)
+    sns.boxplot(x=df_clean[col])
+    plt.title(f'Boxplot of {col} (After Winsorization)')
+plt.tight_layout()
+plt.show()
+
+# Visualize the effect of outlier treatment on a couple of important features
+plt.figure(figsize=(12, 10))
+for i, col in enumerate(numeric_columns[:4]):  # Show first 4 features
+    plt.subplot(2, 2, i+1)
+    sns.histplot(df[col], color='blue', alpha=0.5, label='Original')
+    sns.histplot(df_clean[col], color='red', alpha=0.5, label='After Winsorization')
+    plt.title(f'Distribution of {col}')
+    plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Update our dataframe to use the cleaned version
+df = df_clean
+print(f"\nDataset shape after outlier treatment: {df.shape}")
+
+# Alternative approach: Z-score method for comparison
+print("\nComparing with Z-score method:")
+from scipy import stats
+
+# Function to detect outliers using Z-score method
+def detect_outliers_zscore(df, col, threshold=3):
+    z_scores = stats.zscore(df[col])
+    abs_z_scores = np.abs(z_scores)
+    outliers = df[abs_z_scores > threshold].index
+    return outliers
+
+# Compare outlier detection methods on a few columns
+for col in numeric_columns[:3]:  # First 3 columns
+    iqr_outliers, _, _ = detect_outliers_iqr(df_clean, col)
+    zscore_outliers = detect_outliers_zscore(df_clean, col)
+    print(f"{col}: IQR method found {len(iqr_outliers)} outliers, Z-score method found {len(zscore_outliers)} outliers")
+
+# 3. Split data into train, validation, and test sets (70/10/20)
+# First split into training (70%) and temporary set (30%)
+X = df.drop('Target', axis=1)
+y = df['Target']
+
+X_train, X_temp, y_train, y_temp = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+# Then split the temporary set into validation (10% of full data) and test (20% of full data)
+# This requires adjusting the test_size to get the right proportions
+X_val, X_test, y_val, y_test = train_test_split(
+    X_temp, y_temp, test_size=2/3, random_state=42, stratify=y_temp
+)
+
+print("\nData Split:")
+print(f"Training set: {X_train.shape[0]} samples, {sum(y_train)} positives, {len(y_train) - sum(y_train)} negatives")
+print(f"Validation set: {X_val.shape[0]} samples, {sum(y_val)} positives, {len(y_val) - sum(y_val)} negatives")
+print(f"Test set: {X_test.shape[0]} samples, {sum(y_test)} positives, {len(y_test) - sum(y_test)} negatives")
+
+# 4. Data Preprocessing
+# Identify categorical and numerical features
+cat_features = ['Bike_model', 'State', 'Utm_source', 'Max_time_spent_page_url']
+num_features = ['Total_website_visit', 'Avg_time_spent_per_visit', 
+               'Total_time_spent_before_form_submission', 'Max_time_spent_on_a_single_page',
+               'Unique_pages_viewed', 'Avg_pages_viewed_per_visit', 'Total_page_views']
+
+# Create preprocessing pipeline
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), num_features),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), cat_features)
+    ]
+)
+
+# 5. Function to evaluate models
+def evaluate_model(model, X_val, y_val, X_test=None, y_test=None, model_name="Model", threshold=0.5):
+    """
+    Evaluate model performance on validation and optionally test sets
+    """
+    results = {}
+    
+    # Get predicted probabilities for validation set
+    y_val_proba = model.predict_proba(X_val)[:, 1]
+    
+    # Apply threshold to get binary predictions
+    y_val_pred = (y_val_proba >= threshold).astype(int)
+    
+    # Calculate metrics for validation set
+    val_precision = average_precision_score(y_val, y_val_proba)
+    val_roc_auc = roc_auc_score(y_val, y_val_proba)
+    
+    # Store validation results
+    results['model_name'] = model_name
+    results['val_average_precision'] = val_precision
+    results['val_roc_auc'] = val_roc_auc
+    
+    # Print validation metrics
+    print(f"\n===== {model_name} - Validation Set =====")
+    print(f"Average Precision: {val_precision:.4f}")
+    print(f"ROC-AUC: {val_roc_auc:.4f}")
+    print(classification_report(y_val, y_val_pred))
+    
+    # Create confusion matrix visualization for validation
+    cm_val = confusion_matrix(y_val, y_val_pred)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm_val, annot=True, fmt='d', cmap='Blues')
+    plt.title(f'Confusion Matrix - {model_name} (Validation)')
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.show()
+    
+    # If test data is provided, evaluate on test set too
+    if X_test is not None and y_test is not None:
+        y_test_proba = model.predict_proba(X_test)[:, 1]
+        y_test_pred = (y_test_proba >= threshold).astype(int)
+        
+        test_precision = average_precision_score(y_test, y_test_proba)
+        test_roc_auc = roc_auc_score(y_test, y_test_proba)
+        
+        results['test_average_precision'] = test_precision
+        results['test_roc_auc'] = test_roc_auc
+        
+        print(f"\n===== {model_name} - Test Set =====")
+        print(f"Average Precision: {test_precision:.4f}")
+        print(f"ROC-AUC: {test_roc_auc:.4f}")
+        print(classification_report(y_test, y_test_pred))
+        
+        # Create confusion matrix visualization for test
+        cm_test = confusion_matrix(y_test, y_test_pred)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm_test, annot=True, fmt='d', cmap='Blues')
+        plt.title(f'Confusion Matrix - {model_name} (Test)')
+        plt.xlabel('Predicted Label')
+        plt.ylabel('True Label')
+        plt.show()
+        
+        # Plot precision-recall curve for test set
+        precision, recall, _ = precision_recall_curve(y_test, y_test_proba)
+        plt.figure(figsize=(10, 6))
+        plt.plot(recall, precision, label=f'AP: {test_precision:.4f}')
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.title(f'Precision-Recall Curve - {model_name} (Test)')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+    
+    return results
+
+# 6. Create, train, and evaluate multiple models on imbalanced data
+# Initialize results list
+results = []
+
+# 6.1 Logistic Regression
+print("\n\n=============== Logistic Regression ===============")
+lr_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', LogisticRegression(max_iter=1000, random_state=42))
+])
+
+lr_pipe.fit(X_train, y_train)
+lr_results = evaluate_model(
+    lr_pipe, X_val, y_val, 
+    model_name="Logistic Regression"
+)
+results.append(lr_results)
+
+# Save model
+joblib.dump(lr_pipe, 'logistic_regression_model.pkl')
+print("Logistic Regression model saved as 'logistic_regression_model.pkl'")
+
+# 6.2 Random Forest
+print("\n\n=============== Random Forest ===============")
+rf_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', RandomForestClassifier(n_estimators=100, random_state=42))
+])
+
+rf_pipe.fit(X_train, y_train)
+rf_results = evaluate_model(
+    rf_pipe, X_val, y_val, 
+    model_name="Random Forest"
+)
+results.append(rf_results)
+
+# Save model
+joblib.dump(rf_pipe, 'random_forest_model.pkl')
+print("Random Forest model saved as 'random_forest_model.pkl'")
+
+# 6.3 Gradient Boosting
+print("\n\n=============== Gradient Boosting ===============")
+gb_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', GradientBoostingClassifier(n_estimators=100, random_state=42))
+])
+
+gb_pipe.fit(X_train, y_train)
+gb_results = evaluate_model(
+    gb_pipe, X_val, y_val, 
+    model_name="Gradient Boosting"
+)
+results.append(gb_results)
+
+# Save model
+joblib.dump(gb_pipe, 'gradient_boosting_model.pkl')
+print("Gradient Boosting model saved as 'gradient_boosting_model.pkl'")
+
+# 6.4 Decision Tree
+print("\n\n=============== Decision Tree ===============")
+dt_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', DecisionTreeClassifier(random_state=42))
+])
+
+dt_pipe.fit(X_train, y_train)
+dt_results = evaluate_model(
+    dt_pipe, X_val, y_val, 
+    model_name="Decision Tree"
+)
+results.append(dt_results)
+
+# Save model
+joblib.dump(dt_pipe, 'decision_tree_model.pkl')
+print("Decision Tree model saved as 'decision_tree_model.pkl'")
+
+# 6.5 XGBoost
+print("\n\n=============== XGBoost ===============")
+xgb_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42))
+])
+
+xgb_pipe.fit(X_train, y_train)
+xgb_results = evaluate_model(
+    xgb_pipe, X_val, y_val, 
+    model_name="XGBoost"
+)
+results.append(xgb_results)
+
+# Save model
+joblib.dump(xgb_pipe, 'xgboost_model.pkl')
+print("XGBoost model saved as 'xgboost_model.pkl'")
+
+# 7. Compare all models
+results_df = pd.DataFrame(results)
+print("\n===== Model Comparison on Validation Set =====")
+print(results_df[['model_name', 'val_average_precision', 'val_roc_auc']])
+
+# Find the best model based on average precision
+best_model_idx = results_df['val_average_precision'].idxmax()
+best_model_name = results_df.loc[best_model_idx, 'model_name']
+print(f"\nBest model based on Average Precision: {best_model_name}")
+
+# 8. Evaluate the best model on the test set
+print("\n\n=============== Evaluating Best Model on Test Set ===============")
+# Get the appropriate model
+if best_model_name == "Logistic Regression":
+    best_model = lr_pipe
+elif best_model_name == "Random Forest":
+    best_model = rf_pipe
+elif best_model_name == "Gradient Boosting":
+    best_model = gb_pipe
+elif best_model_name == "Decision Tree":
+    best_model = dt_pipe
+elif best_model_name == "XGBoost":
+    best_model = xgb_pipe
+
+# Evaluate on test set
+best_results = evaluate_model(
+    best_model, X_val, y_val, X_test, y_test,
+    model_name=f"Best Model ({best_model_name})"
+)
+
+# 9. Threshold Optimization for the best model
+print("\n\n=============== Threshold Optimization ===============")
+y_val_proba = best_model.predict_proba(X_val)[:, 1]
+
+# Calculate metrics for different thresholds
+thresholds = np.arange(0, 1.01, 0.05)
+threshold_results = []
+
+for threshold in thresholds:
+    y_val_pred = (y_val_proba >= threshold).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_val, y_val_pred).ravel()
+    
+    # Calculate metrics
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    
+    threshold_results.append({
+        'Threshold': threshold,
+        'Precision': precision,
+        'Recall': recall,
+        'F1-Score': f1,
+        'TP': tp,
+        'FP': fp,
+        'TN': tn,
+        'FN': fn
+    })
+
+# Convert to DataFrame
+threshold_df = pd.DataFrame(threshold_results)
+
+# Plot precision-recall vs threshold
+plt.figure(figsize=(12, 6))
+plt.plot(threshold_df['Threshold'], threshold_df['Precision'], label='Precision')
+plt.plot(threshold_df['Threshold'], threshold_df['Recall'], label='Recall')
+plt.plot(threshold_df['Threshold'], threshold_df['F1-Score'], label='F1-Score')
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title('Precision, Recall, and F1-Score vs. Threshold')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Find optimal threshold based on F1-Score
+optimal_idx = threshold_df['F1-Score'].idxmax()
+optimal_threshold = threshold_df.loc[optimal_idx, 'Threshold']
+print(f"\nOptimal Threshold based on F1-Score: {optimal_threshold:.2f}")
+print(f"At this threshold - Precision: {threshold_df.loc[optimal_idx, 'Precision']:.3f}, " + 
+      f"Recall: {threshold_df.loc[optimal_idx, 'Recall']:.3f}, " + 
+      f"F1-Score: {threshold_df.loc[optimal_idx, 'F1-Score']:.3f}")
+
+# 10. Final evaluation with optimal threshold
+print("\n\n=============== Final Evaluation with Optimal Threshold ===============")
+final_results = evaluate_model(
+    best_model, X_val, y_val, X_test, y_test,
+    model_name=f"Best Model with Optimal Threshold ({best_model_name})",
+    threshold=optimal_threshold
+)
+
+# 11. Feature Importance Analysis (if applicable)
+print("\n\n=============== Feature Importance Analysis ===============")
+try:
+    # Get the classifier from the pipeline
+    final_classifier = best_model.named_steps['classifier']
+    
+    # Get feature names from preprocessor
+    preprocessor.fit(X_train)
+    
+    # Get all feature names after preprocessing
+    feature_names = []
+    
+    # Get numerical feature names (these stay the same)
+    feature_names.extend(num_features)
+    
+    # Get one-hot encoded feature names
+    ohe = preprocessor.named_transformers_['cat']
+    cat_feature_names = []
+    for i, feature in enumerate(cat_features):
+        if hasattr(ohe, 'categories_'):
+            categories = ohe.categories_[i]
+            for category in categories:
+                cat_feature_names.append(f"{feature}_{category}")
+    
+    # Combine all feature names
+    all_features = feature_names + cat_feature_names
+    
+    # Check if model has feature importances
+    if hasattr(final_classifier, 'feature_importances_'):
+        # For tree-based models
+        importances = final_classifier.feature_importances_
+        
+        # Check if shapes match
+        if len(importances) == len(all_features):
+            feature_importance_df = pd.DataFrame({
+                'Feature': all_features,
+                'Importance': importances
+            }).sort_values('Importance', ascending=False)
+            
+            # Plot top 20 feature importances
+            plt.figure(figsize=(12, 8))
+            sns.barplot(x='Importance', y='Feature', data=feature_importance_df.head(20))
+            plt.title(f'Top 20 Feature Importances - {best_model_name}')
+            plt.tight_layout()
+            plt.show()
+        else:
+            print("Feature length mismatch. Cannot plot feature importances.")
+    
+    elif hasattr(final_classifier, 'coef_'):
+        # For linear models like Logistic Regression
+        coefficients = final_classifier.coef_[0]
+        
+        # Check if shapes match
+        if len(coefficients) == len(all_features):
+            coef_df = pd.DataFrame({
+                'Feature': all_features,
+                'Coefficient': coefficients
+            }).sort_values('Coefficient', key=abs, ascending=False)
+            
+            # Plot top 20 coefficients
+            plt.figure(figsize=(12, 8))
+            sns.barplot(x='Coefficient', y='Feature', data=coef_df.head(20))
+            plt.title(f'Top 20 Feature Coefficients - {best_model_name}')
+            plt.tight_layout()
+            plt.show()
+        else:
+            print("Feature length mismatch. Cannot plot feature coefficients.")
+    else:
+        print("Model doesn't provide direct feature importances.")
+except Exception as e:
+    print(f"Error while extracting feature importances: {e}")
+
+# 12. Save the final optimized model with metadata
+print("\n\n=============== Saving Final Model ===============")
+final_model_data = {
+    'model': best_model,
+    'optimal_threshold': optimal_threshold,
+    'model_name': best_model_name,
+    'feature_names': {
+        'numerical': num_features,
+        'categorical': cat_features
+    },
+    'validation_metrics': {
+        'average_precision': best_results.get('val_average_precision'),
+        'roc_auc': best_results.get('val_roc_auc')
+    },
+    'test_metrics': {
+        'average_precision': best_results.get('test_average_precision'),
+        'roc_auc': best_results.get('test_roc_auc')
+    }
+}
+
+joblib.dump(final_model_data, 'final_propensity_model.pkl')
+print("Final model saved as 'final_propensity_model.pkl'")
+
+# 13. Function to make predictions with the final model
+def predict_purchase_propensity(model_data, X, return_probabilities=False):
+    """
+    Make predictions using the saved model with optimal threshold
+    
+    Parameters:
+    model_data (dict): The loaded model data dictionary
+    X (DataFrame): Features for prediction
+    return_probabilities (bool): Whether t
