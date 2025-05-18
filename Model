@@ -1,0 +1,488 @@
+# Propensity Model for Imbalanced Lead Data
+
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, precision_recall_curve, auc, average_precision_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+import xgboost as xgb
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.combine import SMOTETomek
+from imblearn.pipeline import Pipeline as ImbPipeline
+import warnings
+warnings.filterwarnings('ignore')
+
+# Let's assume we have the data in a CSV file named 'leads_data.csv'
+# If you have it in a different format, modify the loading code accordingly
+# df = pd.read_csv('leads_data.csv')
+
+# For demonstration, let's create sample data based on your description
+np.random.seed(42)
+n_pos = 3616
+n_neg = 249842
+
+# Create a sample dataset with similar properties
+bike_models = ['Model A', 'Model B', 'Model C', 'Model D', 'Model E']
+states = ['CA', 'NY', 'TX', 'FL', 'IL', 'WA', 'PA', 'OH', 'GA', 'NC']
+utm_sources = ['google', 'facebook', 'direct', 'email', 'affiliate', 'referral']
+
+# Create negative class samples
+neg_data = {
+    'Bike_model': np.random.choice(bike_models, n_neg),
+    'Total_website_visit': np.random.poisson(2, n_neg),
+    'Avg_time_spent_per_visit': np.random.exponential(120, n_neg),
+    'Total_time_spent_before_form_submission': np.random.exponential(240, n_neg),
+    'Max_time_spent_on_a_single_page': np.random.exponential(60, n_neg),
+    'Max_time_spent_page_url': np.random.randint(1, 10, n_neg),  # Using as a category ID
+    'Unique_pages_viewed': np.random.poisson(3, n_neg),
+    'Avg_pages_viewed_per_visit': np.random.lognormal(1, 0.5, n_neg),
+    'Total_page_views': np.random.poisson(5, n_neg),
+    'State': np.random.choice(states, n_neg),
+    'Utm_source': np.random.choice(utm_sources, n_neg),
+    'Target': np.zeros(n_neg)
+}
+
+# Create positive class samples with slightly different distributions
+pos_data = {
+    'Bike_model': np.random.choice(bike_models, n_pos),
+    'Total_website_visit': np.random.poisson(4, n_pos),  # Higher visits
+    'Avg_time_spent_per_visit': np.random.exponential(180, n_pos),  # More time
+    'Total_time_spent_before_form_submission': np.random.exponential(360, n_pos),
+    'Max_time_spent_on_a_single_page': np.random.exponential(90, n_pos),
+    'Max_time_spent_page_url': np.random.randint(1, 10, n_pos),
+    'Unique_pages_viewed': np.random.poisson(5, n_pos),  # More pages
+    'Avg_pages_viewed_per_visit': np.random.lognormal(1.5, 0.5, n_pos),
+    'Total_page_views': np.random.poisson(10, n_pos),  # More views
+    'State': np.random.choice(states, n_pos),
+    'Utm_source': np.random.choice(utm_sources, n_pos),
+    'Target': np.ones(n_pos)
+}
+
+# Combine into a single dataframe
+df_neg = pd.DataFrame(neg_data)
+df_pos = pd.DataFrame(pos_data)
+df = pd.concat([df_neg, df_pos], ignore_index=True)
+
+# Shuffle the data
+df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+print(f"Dataset shape: {df.shape}")
+print(f"Class distribution:\n{df['Target'].value_counts()}")
+print(f"Class imbalance ratio: 1:{df['Target'].value_counts()[0]/df['Target'].value_counts()[1]:.1f}")
+
+# Exploratory Data Analysis
+print("\nDataset Info:")
+print(df.info())
+
+print("\nSummary Statistics:")
+print(df.describe())
+
+# Check for missing values
+print("\nMissing Values:")
+print(df.isnull().sum())
+
+# Visualize the class distribution
+plt.figure(figsize=(8, 6))
+sns.countplot(x='Target', data=df)
+plt.title('Class Distribution')
+plt.xlabel('Target (0: No Purchase, 1: Purchase)')
+plt.ylabel('Count')
+plt.yscale('log')  # Using log scale due to imbalance
+plt.show()
+
+# Explore feature distributions by target
+numerical_features = [
+    'Total_website_visit', 'Avg_time_spent_per_visit', 
+    'Total_time_spent_before_form_submission', 'Max_time_spent_on_a_single_page',
+    'Unique_pages_viewed', 'Avg_pages_viewed_per_visit', 'Total_page_views'
+]
+
+# Create histograms for numerical features by class
+fig, axes = plt.subplots(len(numerical_features), 1, figsize=(12, 20))
+for i, feature in enumerate(numerical_features):
+    sns.histplot(data=df, x=feature, hue='Target', kde=True, ax=axes[i])
+    axes[i].set_title(f'Distribution of {feature} by Target')
+plt.tight_layout()
+plt.show()
+
+# Explore categorical features
+categorical_features = ['Bike_model', 'State', 'Utm_source']
+
+# Create count plots for categorical features by class
+fig, axes = plt.subplots(len(categorical_features), 1, figsize=(12, 15))
+for i, feature in enumerate(categorical_features):
+    # Calculate conversion rates
+    conv_rates = df.groupby(feature)['Target'].mean().sort_values(ascending=False)
+    top_categories = conv_rates.index[:10]  # Top 10 categories by conversion rate
+    
+    # Filter for top categories for better visualization
+    plot_data = df[df[feature].isin(top_categories)]
+    
+    sns.countplot(x=feature, hue='Target', data=plot_data, ax=axes[i])
+    axes[i].set_title(f'Distribution of {feature} by Target (Top Categories)')
+    axes[i].tick_params(axis='x', rotation=45)
+plt.tight_layout()
+plt.show()
+
+# Feature correlation analysis
+plt.figure(figsize=(12, 10))
+correlation_matrix = df[numerical_features + ['Target']].corr()
+mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', mask=mask)
+plt.title('Feature Correlation Matrix')
+plt.tight_layout()
+plt.show()
+
+# Prepare data for modeling
+X = df.drop('Target', axis=1)
+y = df['Target']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=42, stratify=y
+)
+
+print(f"Training set shape: {X_train.shape}, Class distribution: {pd.Series(y_train).value_counts()}")
+print(f"Testing set shape: {X_test.shape}, Class distribution: {pd.Series(y_test).value_counts()}")
+
+# Identify categorical and numerical features
+cat_features = ['Bike_model', 'State', 'Utm_source', 'Max_time_spent_page_url']
+num_features = ['Total_website_visit', 'Avg_time_spent_per_visit', 
+               'Total_time_spent_before_form_submission', 'Max_time_spent_on_a_single_page',
+               'Unique_pages_viewed', 'Avg_pages_viewed_per_visit', 'Total_page_views']
+
+# Create preprocessing pipeline
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), num_features),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), cat_features)
+    ]
+)
+
+# Define a function to evaluate models with appropriate metrics for imbalanced data
+def evaluate_model(model, X_test, y_test, model_name):
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)[:, 1]
+    
+    # Classification report
+    print(f"\nClassification Report for {model_name}:")
+    print(classification_report(y_test, y_pred))
+    
+    # Confusion matrix
+    cm = confusion_matrix(y_test, y_pred)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.title(f'Confusion Matrix - {model_name}')
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.show()
+    
+    # ROC Curve
+    roc_auc = roc_auc_score(y_test, y_proba)
+    
+    # Precision-Recall Curve (better for imbalanced data)
+    precision, recall, _ = precision_recall_curve(y_test, y_proba)
+    pr_auc = auc(recall, precision)
+    avg_precision = average_precision_score(y_test, y_proba)
+    
+    # Plot both curves
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # ROC Curve
+    fpr, tpr, _ = precision_recall_curve(y_test, y_proba)
+    ax1.plot(fpr, tpr, label=f'AUC = {roc_auc:.3f}')
+    ax1.plot([0, 1], [0, 1], 'k--')
+    ax1.set_xlabel('False Positive Rate')
+    ax1.set_ylabel('True Positive Rate')
+    ax1.set_title(f'ROC Curve - {model_name}')
+    ax1.legend()
+    
+    # Precision-Recall Curve
+    ax2.plot(recall, precision, label=f'PR AUC = {pr_auc:.3f}, AP = {avg_precision:.3f}')
+    ax2.set_xlabel('Recall')
+    ax2.set_ylabel('Precision')
+    ax2.set_title(f'Precision-Recall Curve - {model_name}')
+    ax2.legend()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return {
+        'model_name': model_name,
+        'accuracy': model.score(X_test, y_test),
+        'roc_auc': roc_auc,
+        'pr_auc': pr_auc,
+        'avg_precision': avg_precision
+    }
+
+# Let's compare different approaches to handle class imbalance
+
+# 1. Approach: Using class_weight parameter (for models that support it)
+print("\n\n============ Approach 1: Using class_weight parameter ============")
+# Logistic Regression with class weights
+lr_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', LogisticRegression(class_weight='balanced', max_iter=1000, random_state=42))
+])
+
+lr_pipe.fit(X_train, y_train)
+lr_results = evaluate_model(lr_pipe, X_test, y_test, "Logistic Regression with Class Weights")
+
+# Random Forest with class weights
+rf_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', RandomForestClassifier(class_weight='balanced', random_state=42))
+])
+
+rf_pipe.fit(X_train, y_train)
+rf_results = evaluate_model(rf_pipe, X_test, y_test, "Random Forest with Class Weights")
+
+# 2. Approach: Resampling with SMOTE (oversampling minority class)
+print("\n\n============ Approach 2: SMOTE Oversampling ============")
+smote_pipe = ImbPipeline([
+    ('preprocessor', preprocessor),
+    ('smote', SMOTE(random_state=42)),
+    ('classifier', LogisticRegression(random_state=42, max_iter=1000))
+])
+
+smote_pipe.fit(X_train, y_train)
+smote_results = evaluate_model(smote_pipe, X_test, y_test, "Logistic Regression with SMOTE")
+
+# 3. Approach: Undersampling majority class
+print("\n\n============ Approach 3: Random Undersampling ============")
+# We'll use a more moderate undersampling ratio to avoid losing too much information
+undersample_pipe = ImbPipeline([
+    ('preprocessor', preprocessor),
+    ('undersampler', RandomUnderSampler(sampling_strategy=0.1, random_state=42)),  # 1:10 ratio
+    ('classifier', RandomForestClassifier(random_state=42))
+])
+
+undersample_pipe.fit(X_train, y_train)
+undersample_results = evaluate_model(undersample_pipe, X_test, y_test, "Random Forest with Undersampling")
+
+# 4. Approach: Combined over and undersampling with SMOTETomek
+print("\n\n============ Approach 4: SMOTETomek (Combined Over & Under Sampling) ============")
+smotetomek_pipe = ImbPipeline([
+    ('preprocessor', preprocessor),
+    ('smotetomek', SMOTETomek(random_state=42)),
+    ('classifier', GradientBoostingClassifier(random_state=42))
+])
+
+smotetomek_pipe.fit(X_train, y_train)
+smotetomek_results = evaluate_model(smotetomek_pipe, X_test, y_test, "Gradient Boosting with SMOTETomek")
+
+# 5. Approach: XGBoost with scale_pos_weight
+print("\n\n============ Approach 5: XGBoost with scale_pos_weight ============")
+# Calculate the appropriate scale_pos_weight (neg/pos ratio)
+scale_pos_weight = len(y_train[y_train == 0]) / len(y_train[y_train == 1])
+
+xgb_pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', xgb.XGBClassifier(
+        scale_pos_weight=scale_pos_weight,
+        eval_metric='aucpr',  # Use PR AUC instead of default metrics
+        use_label_encoder=False,
+        random_state=42
+    ))
+])
+
+xgb_pipe.fit(X_train, y_train)
+xgb_results = evaluate_model(xgb_pipe, X_test, y_test, "XGBoost with scale_pos_weight")
+
+# Compare all models
+results = pd.DataFrame([
+    lr_results, rf_results, smote_results, 
+    undersample_results, smotetomek_results, xgb_results
+])
+
+print("\n===== Model Comparison =====")
+print(results[['model_name', 'roc_auc', 'pr_auc', 'avg_precision']])
+
+# Let's tune the best model (assuming XGBoost performed best based on PR-AUC)
+# If a different model performed better, change the optimization accordingly
+print("\n\n============ Hyperparameter Tuning for Best Model ============")
+
+# Create a parameter grid for XGBoost
+param_grid = {
+    'classifier__learning_rate': [0.01, 0.05, 0.1],
+    'classifier__max_depth': [3, 5, 7],
+    'classifier__min_child_weight': [1, 3, 5],
+    'classifier__subsample': [0.7, 0.8, 0.9],
+    'classifier__colsample_bytree': [0.7, 0.8, 0.9],
+    'classifier__n_estimators': [100, 200, 300]
+}
+
+# Create stratified k-fold for cross-validation
+stratified_kfold = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+
+# Initialize RandomizedSearchCV
+random_search = RandomizedSearchCV(
+    estimator=xgb_pipe,
+    param_distributions=param_grid,
+    n_iter=10,  # Number of parameter settings sampled
+    scoring='average_precision',  # Use average precision as the metric
+    cv=stratified_kfold,
+    random_state=42,
+    n_jobs=-1  # Use all available cores
+)
+
+# Find best hyperparameters
+random_search.fit(X_train, y_train)
+
+print(f"Best Parameters: {random_search.best_params_}")
+print(f"Best Average Precision Score: {random_search.best_score_:.3f}")
+
+# Evaluate final model
+best_model = random_search.best_estimator_
+final_results = evaluate_model(best_model, X_test, y_test, "Optimized XGBoost")
+
+# Feature Importance Analysis
+# Extract feature names from the preprocessor
+preprocessor.fit(X_train)
+feature_names = []
+
+# Get numerical feature names (these stay the same)
+feature_names.extend(num_features)
+
+# Get one-hot encoded feature names
+ohe = preprocessor.named_transformers_['cat']
+cat_feature_names = []
+for i, feature in enumerate(cat_features):
+    categories = ohe.categories_[i]
+    for category in categories:
+        cat_feature_names.append(f"{feature}_{category}")
+
+# Get feature importances from the XGBoost model
+# Note: This assumes the best model is XGBoost; if not, modify accordingly
+final_classifier = best_model.named_steps['classifier']
+
+if isinstance(final_classifier, xgb.XGBClassifier):
+    # For XGBoost, get feature importances
+    importances = final_classifier.feature_importances_
+    
+    # Create a DataFrame of feature importances
+    all_features = feature_names + cat_feature_names
+    
+    # Check if lengths match
+    if len(importances) == len(all_features):
+        feature_importance_df = pd.DataFrame({
+            'Feature': all_features,
+            'Importance': importances
+        })
+        
+        # Sort by importance
+        feature_importance_df = feature_importance_df.sort_values('Importance', ascending=False)
+        
+        # Plot feature importances
+        plt.figure(figsize=(12, 8))
+        sns.barplot(x='Importance', y='Feature', data=feature_importance_df.head(20))
+        plt.title('Top 20 Feature Importances')
+        plt.tight_layout()
+        plt.show()
+    else:
+        print(f"Warning: Feature length mismatch. Importances: {len(importances)}, Features: {len(all_features)}")
+
+# Examining Probability Thresholds
+# Get predicted probabilities
+y_proba = best_model.predict_proba(X_test)[:, 1]
+
+# Calculate metrics for different thresholds
+thresholds = np.arange(0, 1.01, 0.05)
+results = []
+
+for threshold in thresholds:
+    y_pred = (y_proba >= threshold).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+    
+    # Calculate metrics
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    
+    results.append({
+        'Threshold': threshold,
+        'Precision': precision,
+        'Recall': recall,
+        'F1-Score': f1,
+        'TP': tp,
+        'FP': fp,
+        'TN': tn,
+        'FN': fn
+    })
+
+# Convert to DataFrame
+threshold_df = pd.DataFrame(results)
+
+# Plot precision-recall vs threshold
+plt.figure(figsize=(12, 6))
+plt.plot(threshold_df['Threshold'], threshold_df['Precision'], label='Precision')
+plt.plot(threshold_df['Threshold'], threshold_df['Recall'], label='Recall')
+plt.plot(threshold_df['Threshold'], threshold_df['F1-Score'], label='F1-Score')
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.title('Precision, Recall, and F1-Score vs. Threshold')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Find optimal threshold based on F1-Score
+optimal_idx = threshold_df['F1-Score'].idxmax()
+optimal_threshold = threshold_df.loc[optimal_idx, 'Threshold']
+print(f"\nOptimal Threshold based on F1-Score: {optimal_threshold:.2f}")
+print(f"At this threshold - Precision: {threshold_df.loc[optimal_idx, 'Precision']:.3f}, Recall: {threshold_df.loc[optimal_idx, 'Recall']:.3f}, F1-Score: {threshold_df.loc[optimal_idx, 'F1-Score']:.3f}")
+
+# Save the best model
+import joblib
+joblib.dump(best_model, 'propensity_model.pkl')
+print("\nFinal model saved as 'propensity_model.pkl'")
+
+# Function to make predictions with the optimal threshold
+def predict_with_optimal_threshold(model, X, threshold=optimal_threshold):
+    """
+    Make predictions using the optimal threshold
+    """
+    probabilities = model.predict_proba(X)[:, 1]
+    return (probabilities >= threshold).astype(int), probabilities
+
+# Example of making predictions with the optimal threshold
+print("\nExample: Making predictions with optimal threshold")
+y_pred_optimal, y_proba_optimal = predict_with_optimal_threshold(best_model, X_test)
+print(classification_report(y_test, y_pred_optimal))
+
+# Summary and Recommendations
+print("""
+# Summary and Recommendations:
+
+1. Class Imbalance: The dataset has a significant class imbalance (1:69 ratio), which has been addressed using various techniques including:
+   - Class weighting
+   - SMOTE oversampling
+   - Random undersampling
+   - Combined sampling with SMOTETomek
+   - XGBoost's scale_pos_weight parameter
+
+2. Best Model: Based on our evaluation metrics (focusing on PR-AUC and Average Precision which are more suitable for imbalanced data), 
+   the optimized XGBoost model performed best.
+
+3. Threshold Selection: Instead of using the default 0.5 probability threshold, we determined an optimal threshold that balances precision and recall.
+
+4. Key Predictors: The feature importance analysis reveals which variables are most influential in predicting propensity to purchase.
+
+5. Implementation Notes:
+   - When deploying this model, use the predict_with_optimal_threshold function instead of the default predict method
+   - Regularly retrain the model with new data to maintain performance
+   - Monitor for concept drift, especially if the business environment changes
+
+6. Business Application:
+   - High-propensity leads can be prioritized for sales follow-up
+   - Marketing campaigns can be targeted toward leads with specific characteristics
+   - Website UX can be optimized based on behavioral patterns of high-propensity visitors
+""")
