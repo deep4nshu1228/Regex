@@ -1,0 +1,28 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Fit the pipeline
+smotetomek_pipe.fit(X_train, y_train)
+
+# Extract trained classifier
+model = smotetomek_pipe.named_steps['classifier']
+
+# Get feature importances
+importances = model.feature_importances_
+
+# Convert to percentage
+importances_percent = 100 * importances / importances.sum()
+
+# Create a DataFrame for plotting
+feat_importance_df = pd.DataFrame({
+    'Feature': X_train.columns,
+    'Importance (%)': importances_percent
+}).sort_values(by='Importance (%)', ascending=False)
+
+# Plot
+plt.figure(figsize=(10, 6))
+sns.barplot(data=feat_importance_df, x='Importance (%)', y='Feature', palette='viridis')
+plt.title("Feature Importances (as %)")
+plt.tight_layout()
+plt.show()
