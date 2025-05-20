@@ -34,3 +34,23 @@ sns.barplot(data=avg_importance_df, x='Avg Importance (%)', y='Original Feature'
 plt.title("Average Feature Importances by Original Feature")
 plt.tight_layout()
 plt.show()
+
+
+
+
+import matplotlib.pyplot as plt
+
+# Assuming 'avg_importance_df' has 'Feature' and 'Importance' columns in %
+plt.figure(figsize=(10, 6))
+bars = plt.barh(avg_importance_df['Feature'], avg_importance_df['Importance'], color='skyblue')
+
+# Add percentage labels to end of bars
+for bar in bars:
+    width = bar.get_width()
+    plt.text(width + 0.5, bar.get_y() + bar.get_height()/2,
+             f'{width:.1f}%', va='center')
+
+plt.xlabel('Average Importance (%)')
+plt.title('Feature Importance (Grouped by Original Column)')
+plt.tight_layout()
+plt.show()
