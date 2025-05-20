@@ -1,28 +1,36 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from collections import defaultdict
 
-# Fit the pipeline
-smotetomek_pipe.fit(X_train, y_train)
+# Assuming X_encoded is your final DataFrame with dummies
+feature_names = X_encoded.columns
+importances = smotetomek_pipe.named_steps['classifier'].feature_importances_
 
-# Extract trained classifier
-model = smotetomek_pipe.named_steps['classifier']
+# Create a DataFrame for importances
+feat_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': importances
+})
 
-# Get feature importances
-importances = model.feature_importances_
+# Group by original feature using prefix before the first underscore
+grouped_importance = defaultdict(list)
+for feature, importance in zip(feat_df['Feature'], feat_df['Importance']):
+    base = feature.split('_')[0]  # Extract base name like 'utm_source'
+    grouped_importance[base].append(importance)
 
-# Convert to percentage
-importances_percent = 100 * importances / importances.sum()
-
-# Create a DataFrame for plotting
-feat_importance_df = pd.DataFrame({
-    'Feature': X_train.columns,
-    'Importance (%)': importances_percent
-}).sort_values(by='Importance (%)', ascending=False)
+# Compute average importance and convert to %
+avg_importance_df = pd.DataFrame([
+    {
+        'Original Feature': k,
+        'Avg Importance (%)': 100 * sum(v) / sum(importances)
+    }
+    for k, v in grouped_importance.items()
+]).sort_values(by='Avg Importance (%)', ascending=False)
 
 # Plot
 plt.figure(figsize=(10, 6))
-sns.barplot(data=feat_importance_df, x='Importance (%)', y='Feature', palette='viridis')
-plt.title("Feature Importances (as %)")
+sns.barplot(data=avg_importance_df, x='Avg Importance (%)', y='Original Feature', palette='viridis')
+plt.title("Average Feature Importances by Original Feature")
 plt.tight_layout()
 plt.show()
