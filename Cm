@@ -1,0 +1,150 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+import matplotlib.patches as patches
+
+def create_business_friendly_confusion_matrix(y_true, y_pred, labels=None, figsize=(10, 8), 
+                                             title="Confusion Matrix", cmap="Blues", 
+                                             model_name="Our Model"):
+    """
+    Create a business-friendly confusion matrix visualization with quadrant labels.
+    
+    Parameters:
+    -----------
+    y_true : array-like
+        Ground truth labels
+    y_pred : array-like
+        Predicted labels
+    labels : list, optional
+        List of labels to index the matrix
+    figsize : tuple, optional
+        Figure size
+    title : str, optional
+        Title of the plot
+    cmap : str, optional
+        Colormap for the heatmap
+    model_name : str, optional
+        Name of the model to display in the title
+    """
+    # Create confusion matrix
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    
+    # Calculate percentages for annotations
+    cm_sum = np.sum(cm)
+    cm_percentages = cm / cm_sum * 100
+    
+    # Create figure and axes
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Create heatmap
+    sns.heatmap(cm, annot=True, fmt="d", cmap=cmap, ax=ax, cbar=True,
+                annot_kws={"size": 16, "weight": "bold"})
+    
+    # Add a second layer with percentages
+    sns.heatmap(cm_percentages, annot=True, fmt=".1f%%", cmap="Blues", 
+                alpha=0, cbar=False, ax=ax, annot_kws={"size": 12, "alpha": 0.7})
+    
+    # Set title and labels
+    ax.set_title(f"{title} - {model_name}", fontsize=18, pad=20)
+    ax.set_xlabel("Predicted Outcome", fontsize=16, labelpad=10)
+    ax.set_ylabel("Actual Outcome", fontsize=16, labelpad=10)
+    
+    # Assuming binary classification (if not, this needs to be adjusted)
+    tick_labels = labels if labels is not None else ["Negative (0)", "Positive (1)"]
+    ax.set_xticklabels(tick_labels, fontsize=14)
+    ax.set_yticklabels(tick_labels, fontsize=14, rotation=0)
+    
+    # Get the position of the axes
+    pos = ax.get_position()
+    
+    # Create quadrant labels with explanations
+    quadrant_props = {
+        "boxstyle": "round,pad=0.5",
+        "facecolor": "white",
+        "alpha": 0.8,
+        "edgecolor": "gray"
+    }
+    
+    # Calculate the positions for the quadrant labels
+    x_midpoint = pos.x0 + pos.width / 2
+    y_midpoint = pos.y0 + pos.height / 2
+    
+    # Add quadrant labels with explanations
+    # True Negative (top-left)
+    tn_text = "TRUE NEGATIVE\nCorrectly predicted\nas negative"
+    fig.text(pos.x0 + pos.width * 0.25, pos.y0 + pos.height * 0.75, 
+             tn_text, ha='center', va='center', fontsize=12, 
+             bbox=quadrant_props, color='darkblue', weight='bold')
+    
+    # False Positive (top-right)
+    fp_text = "FALSE POSITIVE\nIncorrectly predicted\nas positive"
+    fig.text(pos.x0 + pos.width * 0.75, pos.y0 + pos.height * 0.75, 
+             fp_text, ha='center', va='center', fontsize=12, 
+             bbox=quadrant_props, color='crimson', weight='bold')
+    
+    # False Negative (bottom-left)
+    fn_text = "FALSE NEGATIVE\nIncorrectly predicted\nas negative"
+    fig.text(pos.x0 + pos.width * 0.25, pos.y0 + pos.height * 0.25, 
+             fn_text, ha='center', va='center', fontsize=12, 
+             bbox=quadrant_props, color='crimson', weight='bold')
+    
+    # True Positive (bottom-right)
+    tp_text = "TRUE POSITIVE\nCorrectly predicted\nas positive"
+    fig.text(pos.x0 + pos.width * 0.75, pos.y0 + pos.height * 0.25, 
+             tp_text, ha='center', va='center', fontsize=12, 
+             bbox=quadrant_props, color='darkblue', weight='bold')
+    
+    # Add performance metrics at the bottom
+    total = np.sum(cm)
+    tn, fp, fn, tp = cm.ravel()
+    
+    accuracy = (tp + tn) / total
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    
+    metrics_text = (
+        f"Accuracy: {accuracy:.1%} | "
+        f"Precision: {precision:.1%} | "
+        f"Recall: {recall:.1%} | "
+        f"F1 Score: {f1:.1%}"
+    )
+    
+    fig.text(0.5, 0.03, metrics_text, ha='center', va='center', fontsize=14, 
+             bbox=dict(facecolor='lightyellow', alpha=0.5, boxstyle="round,pad=0.5"))
+    
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    return fig
+
+# Example usage:
+# Replace this with your actual data
+# y_true = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+# y_pred = [0, 1, 0, 0, 0, 1, 1, 1, 0, 0]
+
+# create_business_friendly_confusion_matrix(
+#     y_true, 
+#     y_pred,
+#     labels=["No Default", "Default"],
+#     model_name="Credit Risk Model"
+# )
+# plt.show()
+
+
+# Integration with your existing code
+def plot_business_friendly_confusion_matrix(y_val, y_val_pred, model_name="Our Model", 
+                                          labels=None, figsize=(10, 8)):
+    """Wrapper function to integrate with existing code"""
+    fig = create_business_friendly_confusion_matrix(
+        y_true=y_val,
+        y_pred=y_val_pred,
+        model_name=model_name,
+        labels=labels,
+        figsize=figsize
+    )
+    return fig
+
+# Replace your original confusion matrix code with:
+# cm_val = confusion_matrix(y_val, y_val_pred)
+# fig = plot_business_friendly_confusion_matrix(y_val, y_val_pred, model_name="Your Model Name")
+# plt.show()
