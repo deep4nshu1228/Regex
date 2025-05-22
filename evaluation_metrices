@@ -1,87 +1,29 @@
-from sklearn.metrics import (
-    precision_score, recall_score, f1_score,
-    roc_auc_score, average_precision_score, 
-    brier_score_loss, classification_report, 
-    confusion_matrix, precision_recall_curve, roc_curve
-)
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
+# Ensure a new figure is created for each set
+plt.figure(figsize=(6, 18))  # Tall figure for vertical stacking
+fig, axs = plt.subplots(3, 1, figsize=(6, 18))  # 3 rows, 1 column
 
-def evaluate_model(model, X_val, y_val, X_test=None, y_test=None, model_name="Model", threshold=0.5):
-    def compute_metrics(y_true, y_proba, label="Validation"):
-        y_pred = (y_proba >= threshold).astype(int)
+# Confusion Matrix
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axs[0])
+axs[0].set_title(f'Confusion Matrix - {label}')
+axs[0].set_xlabel('Predicted')
+axs[0].set_ylabel('Actual')
 
-        precision = precision_score(y_true, y_pred)
-        recall = recall_score(y_true, y_pred)
-        f1 = f1_score(y_true, y_pred)
-        roc_auc = roc_auc_score(y_true, y_proba)
-        pr_auc = average_precision_score(y_true, y_proba)
-        brier = brier_score_loss(y_true, y_proba)
-        acc = (y_true == y_pred).mean()
-        cm = confusion_matrix(y_true, y_pred)
+# ROC Curve
+fpr, tpr, _ = roc_curve(y_true, y_proba)
+axs[1].plot(fpr, tpr, label=f'AUC = {roc_auc:.2f}')
+axs[1].plot([0, 1], [0, 1], 'k--')
+axs[1].set_title(f'ROC Curve - {label}')
+axs[1].set_xlabel('False Positive Rate')
+axs[1].set_ylabel('True Positive Rate')
+axs[1].legend()
 
-        print(f"\n----- {model_name} - {label} Set -----")
-        print(f"Precision: {precision:.4f}")
-        print(f"Recall: {recall:.4f}")
-        print(f"F1 Score: {f1:.4f}")
-        print(f"ROC AUC: {roc_auc:.4f}")
-        print(f"PR AUC: {pr_auc:.4f}")
-        print(f"Brier Score Loss: {brier:.4f}")
-        print(f"Accuracy: {acc * 100:.2f}%")
-        print(classification_report(y_true, y_pred))
+# Precision-Recall Curve
+precision_vals, recall_vals, _ = precision_recall_curve(y_true, y_proba)
+axs[2].plot(recall_vals, precision_vals, label=f'AUC = {pr_auc:.2f}')
+axs[2].set_title(f'Precision-Recall Curve - {label}')
+axs[2].set_xlabel('Recall')
+axs[2].set_ylabel('Precision')
+axs[2].legend()
 
-        # Ensure a new figure is created for each set
-        plt.figure(figsize=(18, 6))
-        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-
-        # Confusion Matrix
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axs[0])
-        axs[0].set_title(f'Confusion Matrix - {label}')
-        axs[0].set_xlabel('Predicted')
-        axs[0].set_ylabel('Actual')
-
-        # ROC Curve
-        fpr, tpr, _ = roc_curve(y_true, y_proba)
-        axs[1].plot(fpr, tpr, label=f'AUC = {roc_auc:.2f}')
-        axs[1].plot([0, 1], [0, 1], 'k--')
-        axs[1].set_title(f'ROC Curve - {label}')
-        axs[1].set_xlabel('FPR')
-        axs[1].set_ylabel('TPR')
-        axs[1].legend()
-
-        # Precision-Recall Curve
-        precision_vals, recall_vals, _ = precision_recall_curve(y_true, y_proba)
-        axs[2].plot(recall_vals, precision_vals, label=f'AUC = {pr_auc:.2f}')
-        axs[2].set_title(f'Precision-Recall Curve - {label}')
-        axs[2].set_xlabel('Recall')
-        axs[2].set_ylabel('Precision')
-        axs[2].legend()
-
-        plt.tight_layout()
-        plt.show()
-
-        return {
-            'precision': precision,
-            'recall': recall,
-            'f1_score': f1,
-            'roc_auc': roc_auc,
-            'pr_auc': pr_auc,
-            'brier_score_loss': brier,
-            'accuracy': acc
-        }
-
-    results = {'model_name': model_name}
-
-    # Validation
-    y_val_proba = model.predict_proba(X_val)[:, 1]
-    val_metrics = compute_metrics(y_val, y_val_proba, label="Validation")
-    results.update({f'val_{k}': v for k, v in val_metrics.items()})
-
-    # Test
-    if X_test is not None and y_test is not None:
-        y_test_proba = model.predict_proba(X_test)[:, 1]
-        test_metrics = compute_metrics(y_test, y_test_proba, label="Test")
-        results.update({f'test_{k}': v for k, v in test_metrics.items()})
-
-    return results
+plt.tight_layout()
+plt.show()
