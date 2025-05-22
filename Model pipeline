@@ -1,0 +1,271 @@
+# Complete Machine Learning Classifiers Pipeline
+# All 18 classifiers following the pipeline pattern
+
+# Import required libraries
+import numpy as np
+import pandas as pd
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+
+# Basic Classifiers
+from sklearn.linear_model import LogisticRegression
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.svm import SVC
+
+# Ensemble Classifiers
+from sklearn.ensemble import (BaggingClassifier, RandomForestClassifier, 
+                             ExtraTreesClassifier, GradientBoostingClassifier, 
+                             AdaBoostClassifier)
+from imblearn.ensemble import (RUSBoostClassifier, BalancedBaggingClassifier, 
+                              EasyEnsembleClassifier, BalancedRandomForestClassifier)
+from xgboost import XGBClassifier
+
+# Evaluation function (assuming you have this function)
+def evaluate_model(pipeline, X_val, y_val, X_test, y_test, model_name, threshold=0.5):
+    """
+    Evaluate model performance
+    """
+    # Fit the pipeline if not already fitted
+    # pipeline should be already fitted before calling this function
+    
+    # Predictions
+    y_val_pred = pipeline.predict(X_val)
+    y_test_pred = pipeline.predict(X_test)
+    
+    # Calculate accuracies
+    val_accuracy = accuracy_score(y_val, y_val_pred)
+    test_accuracy = accuracy_score(y_test, y_test_pred)
+    
+    print(f"Model: {model_name}")
+    print(f"Validation Accuracy: {val_accuracy:.3f}")
+    print(f"Test Accuracy: {test_accuracy:.3f}")
+    print("-" * 50)
+    
+    return {
+        'model_name': model_name,
+        'validation_accuracy': val_accuracy,
+        'test_accuracy': test_accuracy,
+        'pipeline': pipeline
+    }
+
+# Assuming you have your data loaded as X_train, X_val, X_test, y_train, y_val, y_test
+# If not, here's a sample data loading section:
+"""
+# Load your data here
+# X_train, X_val, X_test, y_train, y_val, y_test = your_data_loading_function()
+"""
+
+# ============================================================================
+# BASIC CLASSIFIERS (9 classifiers)
+# ============================================================================
+
+print("=" * 60)
+print("BASIC CLASSIFIERS")
+print("=" * 60)
+
+# 1. Logistic Regression
+lr_pipe = Pipeline([
+    ('classifier', LogisticRegression(random_state=42, max_iter=1000))
+])
+lr_pipe.fit(X_train, y_train)
+lr_results = evaluate_model(lr_pipe, X_val, y_val, X_test, y_test, 
+                           "Logistic Regression")
+
+# 2. Linear Discriminant Analysis
+lda_pipe = Pipeline([
+    ('classifier', LinearDiscriminantAnalysis())
+])
+lda_pipe.fit(X_train, y_train)
+lda_results = evaluate_model(lda_pipe, X_val, y_val, X_test, y_test, 
+                            "Linear Discriminant Analysis")
+
+# 3. K-Nearest Neighbors
+knn_pipe = Pipeline([
+    ('classifier', KNeighborsClassifier(n_neighbors=5))
+])
+knn_pipe.fit(X_train, y_train)
+knn_results = evaluate_model(knn_pipe, X_val, y_val, X_test, y_test, 
+                            "K-Nearest Neighbors")
+
+# 4. Decision Tree
+dt_pipe = Pipeline([
+    ('classifier', DecisionTreeClassifier(random_state=42))
+])
+dt_pipe.fit(X_train, y_train)
+dt_results = evaluate_model(dt_pipe, X_val, y_val, X_test, y_test, 
+                           "Decision Tree")
+
+# 5. Quadratic Discriminant Analysis
+qda_pipe = Pipeline([
+    ('classifier', QuadraticDiscriminantAnalysis())
+])
+qda_pipe.fit(X_train, y_train)
+qda_results = evaluate_model(qda_pipe, X_val, y_val, X_test, y_test, 
+                            "Quadratic Discriminant Analysis")
+
+# 6. Gaussian Naive Bayes
+gnb_pipe = Pipeline([
+    ('classifier', GaussianNB())
+])
+gnb_pipe.fit(X_train, y_train)
+gnb_results = evaluate_model(gnb_pipe, X_val, y_val, X_test, y_test, 
+                            "Gaussian Naive Bayes")
+
+# 7. Multinomial Naive Bayes
+# Note: MultinomialNB requires non-negative features
+mnb_pipe = Pipeline([
+    ('classifier', MultinomialNB())
+])
+# You might need to preprocess data for MultinomialNB if features can be negative
+try:
+    mnb_pipe.fit(X_train, y_train)
+    mnb_results = evaluate_model(mnb_pipe, X_val, y_val, X_test, y_test, 
+                                "Multinomial Naive Bayes")
+except Exception as e:
+    print(f"Multinomial Naive Bayes failed: {e}")
+    print("Consider preprocessing data to ensure non-negative features")
+
+# 8. Gaussian Process Classifier
+gpc_pipe = Pipeline([
+    ('classifier', GaussianProcessClassifier(random_state=42))
+])
+gpc_pipe.fit(X_train, y_train)
+gpc_results = evaluate_model(gpc_pipe, X_val, y_val, X_test, y_test, 
+                            "Gaussian Process Classifier")
+
+# 9. Support Vector Machine
+svm_pipe = Pipeline([
+    ('classifier', SVC(random_state=42, probability=True))
+])
+svm_pipe.fit(X_train, y_train)
+svm_results = evaluate_model(svm_pipe, X_val, y_val, X_test, y_test, 
+                            "Support Vector Machine")
+
+# ============================================================================
+# ENSEMBLE CLASSIFIERS (9 classifiers)
+# ============================================================================
+
+print("\n" + "=" * 60)
+print("ENSEMBLE CLASSIFIERS")
+print("=" * 60)
+
+# 1. Bagging Classifier
+bagging_pipe = Pipeline([
+    ('classifier', BaggingClassifier(random_state=42, n_estimators=100))
+])
+bagging_pipe.fit(X_train, y_train)
+bagging_results = evaluate_model(bagging_pipe, X_val, y_val, X_test, y_test, 
+                                "Bagging Classifier")
+
+# 2. Random Forest Classifier
+rf_pipe = Pipeline([
+    ('classifier', RandomForestClassifier(class_weight='balanced', random_state=42))
+])
+rf_pipe.fit(X_train, y_train)
+rf_results = evaluate_model(rf_pipe, X_val, y_val, X_test, y_test, 
+                           "Random Forest with Class Weights")
+
+# 3. Extra Trees Classifier
+et_pipe = Pipeline([
+    ('classifier', ExtraTreesClassifier(random_state=42, n_estimators=100))
+])
+et_pipe.fit(X_train, y_train)
+et_results = evaluate_model(et_pipe, X_val, y_val, X_test, y_test, 
+                           "Extra Trees Classifier")
+
+# 4. RUS Boost Classifier
+rusboost_pipe = Pipeline([
+    ('classifier', RUSBoostClassifier(random_state=42))
+])
+rusboost_pipe.fit(X_train, y_train)
+rusboost_results = evaluate_model(rusboost_pipe, X_val, y_val, X_test, y_test, 
+                                 "RUS Boost Classifier")
+
+# 5. Balanced Random Forest Classifier
+brf_pipe = Pipeline([
+    ('classifier', BalancedRandomForestClassifier(random_state=42))
+])
+brf_pipe.fit(X_train, y_train)
+brf_results = evaluate_model(brf_pipe, X_val, y_val, X_test, y_test, 
+                            "Balanced Random Forest")
+
+# 6. Gradient Boosting Classifier
+gb_pipe = Pipeline([
+    ('classifier', GradientBoostingClassifier(random_state=42))
+])
+gb_pipe.fit(X_train, y_train)
+gb_results = evaluate_model(gb_pipe, X_val, y_val, X_test, y_test, 
+                           "Gradient Boosting Classifier")
+
+# 7. Easy Ensemble Classifier
+ee_pipe = Pipeline([
+    ('classifier', EasyEnsembleClassifier(random_state=42))
+])
+ee_pipe.fit(X_train, y_train)
+ee_results = evaluate_model(ee_pipe, X_val, y_val, X_test, y_test, 
+                           "Easy Ensemble Classifier")
+
+# 8. XGBoost Classifier
+xgb_pipe = Pipeline([
+    ('classifier', XGBClassifier(random_state=42, eval_metric='logloss'))
+])
+xgb_pipe.fit(X_train, y_train)
+xgb_results = evaluate_model(xgb_pipe, X_val, y_val, X_test, y_test, 
+                            "XGBoost Classifier")
+
+# 9. AdaBoost Classifier
+ada_pipe = Pipeline([
+    ('classifier', AdaBoostClassifier(random_state=42))
+])
+ada_pipe.fit(X_train, y_train)
+ada_results = evaluate_model(ada_pipe, X_val, y_val, X_test, y_test, 
+                            "AdaBoost Classifier")
+
+# ============================================================================
+# RESULTS SUMMARY
+# ============================================================================
+
+print("\n" + "=" * 60)
+print("RESULTS SUMMARY")
+print("=" * 60)
+
+# Collect all results
+all_results = [
+    lr_results, lda_results, knn_results, dt_results, qda_results,
+    gnb_results, gpc_results, svm_results,  # mnb_results if successful
+    bagging_results, rf_results, et_results, rusboost_results,
+    brf_results, gb_results, ee_results, xgb_results, ada_results
+]
+
+# Create summary DataFrame
+results_df = pd.DataFrame(all_results)
+results_df = results_df.sort_values('test_accuracy', ascending=False)
+
+print("\nTop 10 Performers (by Test Accuracy):")
+print(results_df[['model_name', 'validation_accuracy', 'test_accuracy']].head(10))
+
+# ============================================================================
+# INSTALLATION REQUIREMENTS
+# ============================================================================
+
+print("\n" + "=" * 60)
+print("REQUIRED INSTALLATIONS")
+print("=" * 60)
+print("""
+To run this code, you need to install the following packages:
+
+pip install scikit-learn
+pip install imbalanced-learn
+pip install xgboost
+pip install pandas
+pip install numpy
+
+Or install all at once:
+pip install scikit-learn imbalanced-learn xgboost pandas numpy
+""")
