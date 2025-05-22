@@ -9,7 +9,7 @@ import seaborn as sns
 import numpy as np
 
 def evaluate_model(model, X_val, y_val, X_test=None, y_test=None, model_name="Model", threshold=0.5):
-    def compute_metrics(y_true, y_proba, dataset_name="Validation"):
+    def compute_metrics(y_true, y_proba, label="Validation"):
         y_pred = (y_proba >= threshold).astype(int)
 
         precision = precision_score(y_true, y_pred)
@@ -21,7 +21,7 @@ def evaluate_model(model, X_val, y_val, X_test=None, y_test=None, model_name="Mo
         acc = (y_true == y_pred).mean()
         cm = confusion_matrix(y_true, y_pred)
 
-        print(f"\n----- {model_name} - {dataset_name} Set -----")
+        print(f"\n----- {model_name} - {label} Set -----")
         print(f"Precision: {precision:.4f}")
         print(f"Recall: {recall:.4f}")
         print(f"F1 Score: {f1:.4f}")
@@ -31,6 +31,35 @@ def evaluate_model(model, X_val, y_val, X_test=None, y_test=None, model_name="Mo
         print(f"Accuracy: {acc * 100:.2f}%")
         print(classification_report(y_true, y_pred))
 
+        # Plotting in separate figure
+        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+
+        # Confusion Matrix
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axs[0])
+        axs[0].set_title(f'Confusion Matrix - {label}')
+        axs[0].set_xlabel('Predicted')
+        axs[0].set_ylabel('Actual')
+
+        # ROC Curve
+        fpr, tpr, _ = roc_curve(y_true, y_proba)
+        axs[1].plot(fpr, tpr, label=f'AUC = {roc_auc:.2f}')
+        axs[1].plot([0, 1], [0, 1], 'k--')
+        axs[1].set_title(f'ROC Curve - {label}')
+        axs[1].set_xlabel('FPR')
+        axs[1].set_ylabel('TPR')
+        axs[1].legend()
+
+        # Precision-Recall Curve
+        precision_vals, recall_vals, _ = precision_recall_curve(y_true, y_proba)
+        axs[2].plot(recall_vals, precision_vals, label=f'AUC = {pr_auc:.2f}')
+        axs[2].set_title(f'Precision-Recall Curve - {label}')
+        axs[2].set_xlabel('Recall')
+        axs[2].set_ylabel('Precision')
+        axs[2].legend()
+
+        plt.tight_layout()
+        plt.show()
+
         return {
             'precision': precision,
             'recall': recall,
@@ -38,61 +67,20 @@ def evaluate_model(model, X_val, y_val, X_test=None, y_test=None, model_name="Mo
             'roc_auc': roc_auc,
             'pr_auc': pr_auc,
             'brier_score_loss': brier,
-            'accuracy': acc,
-            'confusion_matrix': cm,
-            'y_proba': y_proba,
-            'y_pred': y_pred,
+            'accuracy': acc
         }
 
     results = {'model_name': model_name}
 
-    # Validation metrics
+    # Validation
     y_val_proba = model.predict_proba(X_val)[:, 1]
-    val_results = compute_metrics(y_val, y_val_proba, dataset_name="Validation")
-    results.update({f"val_{k}": v for k, v in val_results.items() if k != 'y_proba' and k != 'y_pred'})
+    val_metrics = compute_metrics(y_val, y_val_proba, label="Validation")
+    results.update({f'val_{k}': v for k, v in val_metrics.items()})
 
-    # Test metrics if provided
+    # Test
     if X_test is not None and y_test is not None:
         y_test_proba = model.predict_proba(X_test)[:, 1]
-        test_results = compute_metrics(y_test, y_test_proba, dataset_name="Test")
-        results.update({f"test_{k}": v for k, v in test_results.items() if k != 'y_proba' and k != 'y_pred'})
-
-    # Plot both validation and test in one figure if test data exists
-    n_plots = 6 if X_test is not None else 3
-    fig, axs = plt.subplots(1, n_plots, figsize=(6 * n_plots, 6))
-
-    def plot_metrics(ax_idx, y_true, y_pred, y_proba, label):
-        # Confusion Matrix
-        sns.heatmap(confusion_matrix(y_true, y_pred), annot=True, fmt='d', cmap='Blues', ax=axs[ax_idx])
-        axs[ax_idx].set_title(f'Confusion Matrix ({label})')
-        axs[ax_idx].set_xlabel('Predicted')
-        axs[ax_idx].set_ylabel('True')
-
-        # ROC Curve
-        fpr, tpr, _ = roc_curve(y_true, y_proba)
-        axs[ax_idx + 1].plot(fpr, tpr, label=f'AUC = {roc_auc_score(y_true, y_proba):.2f}')
-        axs[ax_idx + 1].plot([0, 1], [0, 1], 'k--')
-        axs[ax_idx + 1].set_title(f'ROC Curve ({label})')
-        axs[ax_idx + 1].set_xlabel('FPR')
-        axs[ax_idx + 1].set_ylabel('TPR')
-        axs[ax_idx + 1].legend()
-
-        # PR Curve
-        precision_vals, recall_vals, _ = precision_recall_curve(y_true, y_proba)
-        axs[ax_idx + 2].plot(recall_vals, precision_vals, label=f'AUC = {average_precision_score(y_true, y_proba):.2f}')
-        axs[ax_idx + 2].set_title(f'PR Curve ({label})')
-        axs[ax_idx + 2].set_xlabel('Recall')
-        axs[ax_idx + 2].set_ylabel('Precision')
-        axs[ax_idx + 2].legend()
-
-    # Plot for validation
-    plot_metrics(0, y_val, val_results['y_pred'], y_val_proba, "Validation")
-
-    # Plot for test if available
-    if X_test is not None and y_test is not None:
-        plot_metrics(3, y_test, test_results['y_pred'], y_test_proba, "Test")
-
-    plt.tight_layout()
-    plt.show()
+        test_metrics = compute_metrics(y_test, y_test_proba, label="Test")
+        results.update({f'test_{k}': v for k, v in test_metrics.items()})
 
     return results
