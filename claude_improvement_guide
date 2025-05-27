@@ -1,0 +1,301 @@
+# Advanced Performance Improvement Strategy for Imbalanced Classification
+
+## 1. Feature Engineering & Creation
+
+### A. Behavioral Ratio Features
+Create meaningful ratios from your existing features:
+```python
+# Engagement ratios
+df['pages_per_visit_ratio'] = df['avg_page_views_per_visit'] / df['unique_pages_viewed']
+df['time_efficiency'] = df['total_time_spent_before_form_submission'] / df['total_page_views']
+df['scroll_engagement'] = df['avg_percent_page_scrolled'] * df['avg_time_spent_per_visit']
+df['visit_depth_ratio'] = df['unique_pages_viewed'] / df['total_website_visits']
+```
+
+### B. Interaction Features  
+Based on your correlation matrix, create interactions between highly correlated features:
+```python
+# High correlation pairs from your matrix
+df['time_pages_interaction'] = df['total_time_spent_before_form_submission'] * df['total_page_views']
+df['max_time_unique_pages'] = df['max_time_spent_on_single_page'] * df['unique_pages_viewed']
+```
+
+### C. Binning Strategy Improvements
+Instead of simple binning for `unique_pages_viewed`, use domain-knowledge based binning:
+```python
+# Create engagement levels
+df['engagement_level'] = pd.cut(df['avg_time_spent_per_visit'], 
+                               bins=[0, 30, 120, 300, float('inf')], 
+                               labels=['low', 'medium', 'high', 'very_high'])
+```
+
+## 2. Advanced Feature Selection Techniques
+
+### A. Mutual Information for Mixed Data Types
+```python
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.preprocessing import LabelEncoder
+
+# For continuous features
+mi_scores_cont = mutual_info_classif(X_continuous, y, random_state=42)
+
+# For categorical features (after encoding)
+mi_scores_cat = mutual_info_classif(X_categorical, y, discrete_features=True, random_state=42)
+```
+
+### B. Recursive Feature Elimination with Cross-Validation
+```python
+from sklearn.feature_selection import RFECV
+from sklearn.ensemble import RandomForestClassifier
+
+rf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+rfecv = RFECV(estimator=rf, step=1, cv=5, scoring='f1', n_jobs=-1)
+X_selected = rfecv.fit_transform(X, y)
+```
+
+### C. Boruta Algorithm for Feature Selection
+```python
+from boruta import BorutaPy
+
+# Use Random Forest as base estimator
+rf = RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=5)
+boruta = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=42)
+boruta.fit(X.values, y.values)
+```
+
+### D. Variance Inflation Factor (VIF) for Multicollinearity
+```python
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+def calculate_vif(df):
+    vif = pd.DataFrame()
+    vif["features"] = df.columns
+    vif["VIF"] = [variance_inflation_factor(df.values, i) for i in range(df.shape[1])]
+    return vif.sort_values('VIF', ascending=False)
+
+# Remove features with VIF > 10
+vif_df = calculate_vif(X_continuous)
+```
+
+## 3. Advanced Sampling Techniques
+
+### A. SMOTE Variants
+```python
+from imblearn.over_sampling import SMOTE, ADASYN, BorderlineSMOTE
+from imblearn.combine import SMOTETomek, SMOTEENN
+
+# Try different SMOTE variants
+samplers = {
+    'SMOTE': SMOTE(random_state=42),
+    'ADASYN': ADASYN(random_state=42),
+    'BorderlineSMOTE': BorderlineSMOTE(random_state=42),
+    'SMOTETomek': SMOTETomek(random_state=42),
+    'SMOTEENN': SMOTEENN(random_state=42)
+}
+```
+
+### B. Custom Sampling Strategy
+```python
+# Instead of 50:50, try different ratios
+sampling_strategy = {0: int(len(minority_class) * 10), 1: len(minority_class)}
+smote = SMOTE(sampling_strategy=sampling_strategy, random_state=42)
+```
+
+## 4. Model-Specific Improvements
+
+### A. Threshold Optimization
+```python
+from sklearn.metrics import precision_recall_curve
+import numpy as np
+
+def optimize_threshold(y_true, y_proba):
+    precision, recall, thresholds = precision_recall_curve(y_true, y_proba)
+    f1_scores = 2 * (precision * recall) / (precision + recall)
+    optimal_idx = np.argmax(f1_scores)
+    return thresholds[optimal_idx], f1_scores[optimal_idx]
+```
+
+### B. Cost-Sensitive Learning
+```python
+# Calculate class weights based on your specific business costs
+class_weight = {0: 1, 1: 44}  # Since class 1 is 2.2%, weight it ~45x more
+
+# For XGBoost
+scale_pos_weight = len(y[y==0]) / len(y[y==1])  # ~44 for your case
+```
+
+### C. Ensemble of Diverse Models
+```python
+from sklearn.ensemble import VotingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+
+# Create diverse ensemble
+estimators = [
+    ('gb', GradientBoostingClassifier(class_weight='balanced')),
+    ('rf', RandomForestClassifier(class_weight='balanced')),
+    ('lr', LogisticRegression(class_weight='balanced')),
+    ('svc', SVC(class_weight='balanced', probability=True))
+]
+
+ensemble = VotingClassifier(estimators, voting='soft')
+```
+
+## 5. Hyperparameter Optimization Strategies
+
+### A. Bayesian Optimization
+```python
+from skopt import BayesSearchCV
+from skopt.space import Real, Integer
+
+# Define search space for GradientBoosting
+search_spaces = {
+    'n_estimators': Integer(100, 1000),
+    'learning_rate': Real(0.01, 0.3, prior='log-uniform'),
+    'max_depth': Integer(3, 10),
+    'min_samples_split': Integer(2, 20),
+    'min_samples_leaf': Integer(1, 20),
+    'subsample': Real(0.6, 1.0)
+}
+
+bayes_search = BayesSearchCV(
+    GradientBoostingClassifier(),
+    search_spaces,
+    n_iter=50,
+    cv=5,
+    scoring='f1',
+    n_jobs=-1,
+    random_state=42
+)
+```
+
+### B. Multi-Objective Optimization
+Focus on both recall and precision simultaneously using custom scoring:
+```python
+from sklearn.metrics import make_scorer
+
+def custom_score(y_true, y_pred):
+    recall = recall_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    # Weighted combination - adjust weights based on business needs
+    return 0.6 * recall + 0.4 * precision
+
+custom_scorer = make_scorer(custom_score)
+```
+
+## 6. Advanced Validation Strategies
+
+### A. Stratified Time-Series Split (if temporal component exists)
+```python
+from sklearn.model_selection import TimeSeriesSplit
+
+# If your data has temporal order
+tscv = TimeSeriesSplit(n_splits=5)
+```
+
+### B. Repeated Stratified K-Fold
+```python
+from sklearn.model_selection import RepeatedStratifiedKFold
+
+rskf = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=42)
+```
+
+## 7. Feature Transformation Improvements
+
+### A. Quantile Transformation
+```python
+from sklearn.preprocessing import QuantileTransformer
+
+# Instead of log transform, try quantile transformation
+qt = QuantileTransformer(output_distribution='normal', random_state=42)
+X_transformed = qt.fit_transform(X_skewed)
+```
+
+### B. Power Transform (Yeo-Johnson)
+```python
+from sklearn.preprocessing import PowerTransformer
+
+pt = PowerTransformer(method='yeo-johnson', standardize=True)
+X_transformed = pt.fit_transform(X)
+```
+
+## 8. Model Interpretation & Feature Importance
+
+### A. SHAP Values for Feature Selection
+```python
+import shap
+
+explainer = shap.TreeExplainer(your_best_model)
+shap_values = explainer.shap_values(X_test)
+
+# Get feature importance
+feature_importance = np.abs(shap_values).mean(0)
+```
+
+### B. Permutation Importance
+```python
+from sklearn.inspection import permutation_importance
+
+perm_importance = permutation_importance(
+    your_model, X_val, y_val, 
+    scoring='f1', n_repeats=10, random_state=42
+)
+```
+
+## 9. Specific Recommendations for Your Data
+
+### Handle `total_website_visits` Better
+Since it's mostly 1s and highly skewed:
+```python
+# Create binary feature for single vs multiple visits
+df['is_single_visit'] = (df['total_website_visits'] == 1).astype(int)
+
+# Log transform the rest
+df['log_total_visits'] = np.log1p(df['total_website_visits'])
+```
+
+### Categorical Feature Engineering
+```python
+# Target encoding for high-cardinality categoricals
+from category_encoders import TargetEncoder
+
+te = TargetEncoder()
+X_encoded = te.fit_transform(X_categorical, y)
+
+# Frequency encoding
+df['state_frequency'] = df.groupby('state')['state'].transform('count')
+```
+
+## 10. Final Model Pipeline Recommendation
+
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+
+# Create preprocessing pipeline
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numerical_features),
+        ('cat', OneHotEncoder(drop='first', sparse=False), categorical_features)
+    ])
+
+# Final pipeline with feature selection
+final_pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('feature_selection', SelectKBest(mutual_info_classif, k=20)),
+    ('sampling', SMOTE(random_state=42)),
+    ('classifier', GradientBoostingClassifier(class_weight='balanced'))
+])
+```
+
+## Next Steps Priority Order:
+
+1. **Feature Engineering**: Create ratio and interaction features
+2. **Advanced Feature Selection**: Use Boruta + RFECV + Mutual Information
+3. **Sampling Strategy**: Experiment with SMOTE variants and custom ratios
+4. **Threshold Optimization**: Fine-tune decision threshold
+5. **Hyperparameter Tuning**: Use Bayesian optimization
+6. **Ensemble Methods**: Combine your best performing models
+7. **Cross-validation**: Use repeated stratified k-fold for robust evaluation
+
+Focus on steps 1-4 first, as they typically provide the biggest performance gains for imbalanced datasets.
