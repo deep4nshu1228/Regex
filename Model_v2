@@ -1,0 +1,47 @@
+import pandas as pd import numpy as np from sklearn.base import BaseEstimator, TransformerMixin from sklearn.pipeline import Pipeline from sklearn.compose import ColumnTransformer from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, RobustScaler from sklearn.impute import SimpleImputer from sklearn.ensemble import RandomForestClassifier
+
+Custom Winsorizer Transformer
+
+class Winsorizer(BaseEstimator, TransformerMixin): def init(self, limits=(0.01, 0.99)): self.limits = limits
+
+def fit(self, X, y=None):
+    self.lower_ = np.nanpercentile(X, self.limits[0]*100, axis=0)
+    self.upper_ = np.nanpercentile(X, self.limits[1]*100, axis=0)
+    return self
+
+def transform(self, X):
+    X_capped = np.clip(X, self.lower_, self.upper_)
+    return X_capped
+
+Define feature groups
+
+num_log_winsor = [ 'AVG_TIME_SPENT_PER_VISIT', 'TOTAL_TIME_SPENT_BEFORE_FORM_SUBMISSION', 'MAX_TIME_SPENT_ON_SINGLE_PAGE', 'TOTAL_PAGE_VIEWS' ]
+
+num_simple = [ 'UNIQUE_PAGES_VIEWED', 'AVG_PERCENT_PAGE_SCROLLED' ]
+
+categorical = ['STATE', 'UTM_SOURCE', 'BIKE_NAME']
+
+Define column preprocessors
+
+log_winsor_pipeline = Pipeline(steps=[ ('imputer', SimpleImputer(strategy='median')), ('winsor', Winsorizer(limits=(0.01, 0.99))), ('log1p', FunctionTransformer(np.log1p)), ('scaler', RobustScaler()) ])
+
+simple_num_pipeline = Pipeline(steps=[ ('imputer', SimpleImputer(strategy='median')), ('scaler', RobustScaler()) ])
+
+cat_pipeline = Pipeline(steps=[ ('imputer', SimpleImputer(strategy='most_frequent')), ('onehot', OneHotEncoder(handle_unknown='ignore')) ])
+
+Combine preprocessors
+
+preprocessor = ColumnTransformer(transformers=[ ('log_winsor_num', log_winsor_pipeline, num_log_winsor), ('simple_num', simple_num_pipeline, num_simple), ('cat', cat_pipeline, categorical) ])
+
+Final pipeline with Random Forest
+
+final_pipeline = Pipeline(steps=[ ('preprocess', preprocessor), ('model', RandomForestClassifier(class_weight='balanced', random_state=42)) ])
+
+Example usage (assuming df is your DataFrame with 'TARGET' column)
+
+X = df.drop('TARGET', axis=1)
+
+y = df['TARGET']
+
+final_pipeline.fit(X, y)
+
