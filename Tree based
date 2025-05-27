@@ -1,0 +1,34 @@
+Lead Propensity Modeling for Bike Purchase (Jupyter Notebook Style)
+
+Cell 1: Imports
+
+import pandas as pd import numpy as np from sklearn.model_selection import train_test_split from sklearn.metrics import classification_report, roc_auc_score from sklearn.ensemble import RandomForestClassifier from xgboost import XGBClassifier
+
+Cell 2: Load your dataset (update with your filename)
+
+df = pd.read_csv("your_data.csv")  # Replace with your file path
+
+Cell 3: Split features and target
+
+X = df.drop(columns=["TARGET"])  # Replace 'TARGET' with your actual target column y = df["TARGET"]
+
+One-hot encoding for categorical features (if any)
+
+X = pd.get_dummies(X, drop_first=True)
+
+Cell 4: Train-test split
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+
+Cell 5: Random Forest Model
+
+rf = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42) rf.fit(X_train, y_train)
+
+Evaluate Random Forest
+
+y_pred_rf = rf.predict(X_test) y_proba_rf = rf.predict_proba(X_test)[:, 1] print("Random Forest Report:\n", classification_report(y_test, y_pred_rf)) print("Random Forest ROC AUC:", roc_auc_score(y_test, y_proba_rf))
+
+Cell 6: XGBoost Model with class imbalance handling
+
+scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum() xgb = XGBClassifier( n
+
