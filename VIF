@@ -1,0 +1,55 @@
+import pandas as pd
+import numpy as np
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from sklearn.preprocessing import StandardScaler
+
+# Load your data (replace with your actual DataFrame)
+df = pd.read_csv("your_data.csv")  # or your loaded df
+
+# List of numeric features you want to check
+features = [
+    "TOTAL_WEBSITE_VISITS",
+    "AVG_TIME_SPENT_PER_VISIT",
+    "TOTAL_TIME_SPENT_BEFORE_FORM_SUBMISSION",
+    "MAX_TIME_SPENT_ON_SINGLE_PAGE",
+    "AVG_PERCENT_PAGE_SCROLLED",
+    "UNIQUE_PAGES_VIEWED",
+    "AVG_PAGE_VIEWS_PER_VISIT",
+    "TOTAL_PAGE_VIEWS"
+]
+
+# Optional: drop rows with NaNs in those features
+df_clean = df[features].dropna().copy()
+
+# Optional: standardize features (for stability of VIF)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(df_clean)
+X_df = pd.DataFrame(X_scaled, columns=features)
+
+# Calculate VIF
+def calculate_vif(X):
+    vif_data = pd.DataFrame()
+    vif_data["feature"] = X.columns
+    vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+    return vif_data.sort_values("VIF", ascending=False)
+
+# First VIF check
+vif_result = calculate_vif(X_df)
+print("Initial VIF scores:")
+print(vif_result)
+
+# Drop features iteratively with VIF > 10
+high_vif_features = vif_result[vif_result["VIF"] > 10]["feature"].tolist()
+
+while high_vif_features:
+    feature_to_drop = high_vif_features[0]
+    print(f"\nDropping feature with highest VIF: {feature_to_drop}")
+    X_df = X_df.drop(columns=feature_to_drop)
+    vif_result = calculate_vif(X_df)
+    print(vif_result)
+    high_vif_features = vif_result[vif_result["VIF"] > 10]["feature"].tolist()
+
+# Final set of features
+selected_features = X_df.columns.tolist()
+print("\nFinal selected features after VIF reduction:")
+print(selected_features)
