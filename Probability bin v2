@@ -1,0 +1,83 @@
+# Replace your existing plt.figure(figsize=(4, 4)) line with:
+    
+    # Create probability bins
+    bins = ['Low (0.0-0.3)', 'Medium (0.3-0.7)', 'High (0.7-1.0)']
+    bin_conditions = [
+        (y_proba >= 0.0) & (y_proba < 0.3),
+        (y_proba >= 0.3) & (y_proba < 0.7),
+        (y_proba >= 0.7) & (y_proba <= 1.0)
+    ]
+    
+    # Initialize matrix
+    prob_matrix = np.zeros((4, 3))  # 4 rows (3 bins + total), 3 cols (class 0, class 1, total)
+    prob_percentage = np.zeros((4, 3))
+    
+    total_samples = len(y_true)
+    
+    for i, condition in enumerate(bin_conditions):
+        # Count for each class in this bin
+        bin_mask = condition
+        class_0_count = np.sum((y_true == 0) & bin_mask)
+        class_1_count = np.sum((y_true == 1) & bin_mask)
+        bin_total = class_0_count + class_1_count
+        
+        prob_matrix[i, 0] = class_0_count
+        prob_matrix[i, 1] = class_1_count
+        prob_matrix[i, 2] = bin_total
+        
+        # Calculate percentages
+        prob_percentage[i, 0] = (class_0_count / total_samples) * 100 if total_samples > 0 else 0
+        prob_percentage[i, 1] = (class_1_count / total_samples) * 100 if total_samples > 0 else 0
+        prob_percentage[i, 2] = (bin_total / total_samples) * 100 if total_samples > 0 else 0
+    
+    # Calculate totals
+    prob_matrix[3, 0] = np.sum(y_true == 0)  # Total class 0
+    prob_matrix[3, 1] = np.sum(y_true == 1)  # Total class 1
+    prob_matrix[3, 2] = total_samples  # Grand total
+    
+    prob_percentage[3, 0] = (prob_matrix[3, 0] / total_samples) * 100 if total_samples > 0 else 0
+    prob_percentage[3, 1] = (prob_matrix[3, 1] / total_samples) * 100 if total_samples > 0 else 0
+    prob_percentage[3, 2] = 100.0
+
+    plt.figure(figsize=(16, 6))  # Wider figure for two plots
+
+    # Plot 1: Confusion Matrix
+    plt.subplot(1, 2, 1)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.title(f'Confusion Matrix - {label} - {model_name}')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+
+    # Plot 2: Probability Binning Matrix
+    plt.subplot(1, 2, 2)
+
+    # Create labels for the heatmap
+    labels = np.empty_like(prob_matrix, dtype=object)
+    for i in range(prob_matrix.shape[0]):
+        for j in range(prob_matrix.shape[1]):
+            labels[i, j] = f'{int(prob_matrix[i, j])}\n({prob_percentage[i, j]:.1f}%)'
+
+    # Create the heatmap
+    row_labels = bins + ['Total']
+    col_labels = ['Class 0', 'Class 1', 'Total']
+
+    sns.heatmap(prob_matrix, annot=labels, fmt='', cmap='Oranges', 
+                xticklabels=col_labels, yticklabels=row_labels)
+    plt.title(f'Probability Distribution - {label} - {model_name}')
+    plt.xlabel('Actual Class')
+    plt.ylabel('Probability Bins')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Create DataFrame for Excel export
+    prob_df = pd.DataFrame(prob_matrix, 
+                          columns=['Class_0_Count', 'Class_1_Count', 'Total_Count'],
+                          index=['Low_0.0-0.3', 'Medium_0.3-0.7', 'High_0.7-1.0', 'Total'])
+
+    prob_percentage_df = pd.DataFrame(prob_percentage, 
+                                     columns=['Class_0_Percentage', 'Class_1_Percentage', 'Total_Percentage'],
+                                     index=['Low_0.0-0.3', 'Medium_0.3-0.7', 'High_0.7-1.0', 'Total'])
+
+    # Combine count and percentage data
+    prob_combined_df = pd.concat([prob_df, prob_percentage_df], axis=1)
