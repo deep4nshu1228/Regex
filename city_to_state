@@ -1,0 +1,163 @@
+-- Snowflake Query to map Indian cities to their respective states
+-- Replace 'your_table' and 'city_column' with your actual table and column names
+
+SELECT 
+    city_column,
+    CASE 
+        -- Uttar Pradesh
+        WHEN UPPER(city_column) IN ('AGRA', 'ALIGARH', 'ALLAHABAD', 'BAREILLY', 'GHAZIABAD', 'GORAKHPUR', 
+                                   'GURGAON', 'KANPUR', 'LUCKNOW', 'MEERUT', 'MORADABAD', 'NOIDA', 
+                                   'VARANASI', 'FIROZABAD', 'MATHURA', 'MUZAFFARNAGAR', 'SAHARANPUR',
+                                   'BULANDSHAHR', 'RAMPUR', 'JHANSI', 'ETAWAH') THEN 'Uttar Pradesh'
+        
+        -- Maharashtra
+        WHEN UPPER(city_column) IN ('MUMBAI', 'PUNE', 'NAGPUR', 'NASHIK', 'AURANGABAD', 'SOLAPUR', 
+                                   'THANE', 'VASAI-VIRAR', 'AMRAVATI', 'NAVI MUMBAI', 'KOLHAPUR', 
+                                   'AKOLA', 'LATUR', 'DHULE', 'AHMEDNAGAR', 'CHANDRAPUR', 'PARBHANI',
+                                   'JALGAON', 'BHIWANDI', 'NANDED', 'MALEGAON', 'SANGLI') THEN 'Maharashtra'
+        
+        -- Karnataka
+        WHEN UPPER(city_column) IN ('BANGALORE', 'MYSORE', 'HUBLI', 'MANGALORE', 'BELGAUM', 'GULBARGA',
+                                   'DAVANAGERE', 'BELLARY', 'BIJAPUR', 'SHIMOGA', 'TUMKUR', 'RAICHUR',
+                                   'BIDAR', 'HOSPET', 'GADAG-BETAGERI', 'UDUPI', 'ROBERTSON PET') THEN 'Karnataka'
+        
+        -- Tamil Nadu
+        WHEN UPPER(city_column) IN ('CHENNAI', 'COIMBATORE', 'MADURAI', 'TIRUCHIRAPPALLI', 'SALEM', 
+                                   'TIRUNELVELI', 'TIRUPPUR', 'RANIPET', 'NAGERCOIL', 'THANJAVUR',
+                                   'VELLORE', 'KANCHIPURAM', 'ERODE', 'TIRUVANNAMALAI', 'POLLACHI',
+                                   'RAJAPALAYAM', 'SIVAKASI', 'PUDUKKOTTAI', 'NEYVELI', 'NAGAPATTINAM',
+                                   'VILUPPURAM', 'TIRUVALLUR', 'KARAIKUDI', 'OOTY', 'PALANI') THEN 'Tamil Nadu'
+        
+        -- Gujarat
+        WHEN UPPER(city_column) IN ('AHMEDABAD', 'SURAT', 'VADODARA', 'RAJKOT', 'BHAVNAGAR', 'JAMNAGAR',
+                                   'GANDHINAGAR', 'JUNAGADH', 'GANDHIDHAM', 'ANAND', 'NAVSARI', 'MORBI',
+                                   'SURENDRANAGAR', 'BHARUCH') THEN 'Gujarat'
+        
+        -- Rajasthan
+        WHEN UPPER(city_column) IN ('JAIPUR', 'JODHPUR', 'KOTA', 'BIKANER', 'AJMER', 'UDAIPUR', 
+                                   'BHILWARA', 'ALWAR', 'BHARATPUR', 'SIKAR', 'PALI', 'SRI GANGANAGAR',
+                                   'KISHANGARH', 'BEAWAR', 'DHAULPUR') THEN 'Rajasthan'
+        
+        -- West Bengal
+        WHEN UPPER(city_column) IN ('KOLKATA', 'HOWRAH', 'DURGAPUR', 'ASANSOL', 'SILIGURI', 'BARDHAMAN',
+                                   'MALDA', 'BAHARAMPUR', 'HABRA', 'KHARAGPUR', 'SHANTIPUR', 'DANKUNI',
+                                   'DHULIAN', 'RANAGHAT', 'HALDIA', 'INDIA', 'RAIGANJ', 'KRISHNANAGAR') THEN 'West Bengal'
+        
+        -- Madhya Pradesh
+        WHEN UPPER(city_column) IN ('BHOPAL', 'INDORE', 'GWALIOR', 'JABALPUR', 'UJJAIN', 'SAGAR', 
+                                   'DEWAS', 'SATNA', 'RATLAM', 'REWA', 'MURWARA', 'SINGRAULI',
+                                   'BURHANPUR', 'KHANDWA', 'BHIND', 'CHHINDWARA', 'GUNA', 'SHIVPURI',
+                                   'VIDISHA', 'CHHATARPUR', 'DAMOH', 'MANDSAUR', 'KHARGONE') THEN 'Madhya Pradesh'
+        
+        -- Andhra Pradesh & Telangana
+        WHEN UPPER(city_column) IN ('HYDERABAD', 'VIJAYAWADA', 'VISAKHAPATNAM', 'GUNTUR', 'NELLORE',
+                                   'KURNOOL', 'RAJAHMUNDRY', 'KADAPA', 'KAKINADA', 'TIRUPATI', 'ANANTAPUR',
+                                   'VIZIANAGARAM', 'ELURU', 'ONGOLE', 'NANDYAL', 'MACHILIPATNAM',
+                                   'ADONI', 'TENALI', 'PRODDATUR', 'CHITTOOR', 'HINDUPUR', 'BHIMAVARAM',
+                                   'MADANAPALLE', 'GUNTAKAL', 'DHARMAVARAM', 'GUDIVADA', 'NARASARAOPET',
+                                   'TADIPATRI', 'TADEPALLIGUDEM', 'CHILAKALURIPET', 'YEMMIGANUR') THEN 'Andhra Pradesh/Telangana'
+        
+        -- Kerala
+        WHEN UPPER(city_column) IN ('THIRUVANANTHAPURAM', 'KOCHI', 'KOZHIKODE', 'KOLLAM', 'THRISSUR',
+                                   'ALAPPUZHA', 'PALAKKAD', 'MALAPPURAM', 'KANNUR', 'KASARAGOD',
+                                   'KOTTAYAM', 'IDUKKI', 'ERNAKULAM', 'PATHANAMTHITTA', 'WAYANAD') THEN 'Kerala'
+        
+        -- Punjab
+        WHEN UPPER(city_column) IN ('LUDHIANA', 'AMRITSAR', 'JALANDHAR', 'PATIALA', 'BATHINDA',
+                                   'HOSHIARPUR', 'BATALA', 'PATHANKOT', 'MOGA', 'ABOHAR', 'MALERKOTLA',
+                                   'KHANNA', 'PHAGWARA', 'MUKTSAR', 'BARNALA', 'RAJPURA', 'FIROZPUR') THEN 'Punjab'
+        
+        -- Haryana
+        WHEN UPPER(city_column) IN ('FARIDABAD', 'GURGAON', 'PANIPAT', 'AMBALA', 'YAMUNANAGAR',
+                                   'ROHTAK', 'HISAR', 'KARNAL', 'SONIPAT', 'PANCHKULA', 'BHIWANI',
+                                   'SIRSA', 'BAHADURGARH', 'JIND', 'THANESAR', 'KAITHAL', 'REWARI') THEN 'Haryana'
+        
+        -- Bihar
+        WHEN UPPER(city_column) IN ('PATNA', 'GAYA', 'BHAGALPUR', 'MUZAFFARPUR', 'DARBHANGA', 'BIHAR SHARIF',
+                                   'ARRAH', 'BEGUSARAI', 'KATIHAR', 'MUNGER', 'CHHAPRA', 'DANAPUR',
+                                   'SAHARSA', 'SASARAM', 'HAJIPUR', 'DEHRI', 'SIWAN', 'MOTIHARI', 'NAWADA') THEN 'Bihar'
+        
+        -- Odisha
+        WHEN UPPER(city_column) IN ('BHUBANESWAR', 'CUTTACK', 'ROURKELA', 'BRAHMAPUR', 'SAMBALPUR',
+                                   'PURI', 'BALASORE', 'BHADRAK', 'BARIPADA', 'JHARSUGUDA') THEN 'Odisha'
+        
+        -- Assam
+        WHEN UPPER(city_column) IN ('GUWAHATI', 'SILCHAR', 'DIBRUGARH', 'JORHAT', 'NAGAON', 'TINSUKIA',
+                                   'TEZPUR', 'BONGAIGAON', 'DHUBRI', 'DIPHU', 'NORTH LAKHIMPUR') THEN 'Assam'
+        
+        -- Jharkhand
+        WHEN UPPER(city_column) IN ('RANCHI', 'JAMSHEDPUR', 'DHANBAD', 'BOKARO', 'DEOGHAR', 'PHUSRO',
+                                   'HAZARIBAGH', 'BARBIL', 'CHAIBASA', 'RAJMAHAL') THEN 'Jharkhand'
+        
+        -- Chhattisgarh
+        WHEN UPPER(city_column) IN ('RAIPUR', 'BHILAI', 'BILASPUR', 'KORBA', 'DURG', 'RAJNANDGAON',
+                                   'JAGDALPUR', 'RAIGARH', 'AMBIKAPUR') THEN 'Chhattisgarh'
+        
+        -- Himachal Pradesh
+        WHEN UPPER(city_column) IN ('SHIMLA', 'DHARAMSHALA', 'SOLAN', 'MANDI', 'PALAMPUR', 'BADDI',
+                                   'NAHAN', 'PAONTA SAHIB', 'SUNDERNAGAR', 'CHAMBA') THEN 'Himachal Pradesh'
+        
+        -- Jammu & Kashmir
+        WHEN UPPER(city_column) IN ('SRINAGAR', 'JAMMU', 'BARAMULLA', 'ANANTNAG', 'SOPORE', 'KATHUA',
+                                   'UDHAMPUR') THEN 'Jammu & Kashmir'
+        
+        -- Uttarakhand
+        WHEN UPPER(city_column) IN ('DEHRADUN', 'HARIDWAR', 'ROORKEE', 'HALDWANI', 'RUDRAPUR', 'KASHIPUR',
+                                   'RISHIKESH') THEN 'Uttarakhand'
+        
+        -- Delhi
+        WHEN UPPER(city_column) IN ('NEW DELHI', 'DELHI') THEN 'Delhi'
+        
+        -- Goa
+        WHEN UPPER(city_column) IN ('PANAJI', 'VASCO DA GAMA', 'MARGAO', 'MAPUSA') THEN 'Goa'
+        
+        -- Manipur
+        WHEN UPPER(city_column) IN ('IMPHAL') THEN 'Manipur'
+        
+        -- Tripura
+        WHEN UPPER(city_column) IN ('AGARTALA') THEN 'Tripura'
+        
+        -- Meghalaya
+        WHEN UPPER(city_column) IN ('SHILLONG') THEN 'Meghalaya'
+        
+        -- Mizoram
+        WHEN UPPER(city_column) IN ('AIZAWL') THEN 'Mizoram'
+        
+        -- Nagaland
+        WHEN UPPER(city_column) IN ('KOHIMA', 'DIMAPUR') THEN 'Nagaland'
+        
+        -- Arunachal Pradesh
+        WHEN UPPER(city_column) IN ('ITANAGAR') THEN 'Arunachal Pradesh'
+        
+        -- Sikkim
+        WHEN UPPER(city_column) IN ('GANGTOK') THEN 'Sikkim'
+        
+        -- Union Territories
+        WHEN UPPER(city_column) IN ('CHANDIGARH') THEN 'Chandigarh'
+        WHEN UPPER(city_column) IN ('PUDUCHERRY', 'PONDICHERRY') THEN 'Puducherry'
+        WHEN UPPER(city_column) IN ('PORT BLAIR') THEN 'Andaman & Nicobar Islands'
+        WHEN UPPER(city_column) IN ('DAMAN', 'DIU') THEN 'Daman & Diu'
+        WHEN UPPER(city_column) IN ('SILVASSA') THEN 'Dadra & Nagar Haveli'
+        WHEN UPPER(city_column) IN ('LAKSHADWEEP') THEN 'Lakshadweep'
+        WHEN UPPER(city_column) IN ('LADAKH', 'LEH') THEN 'Ladakh'
+        
+        ELSE 'Unknown'
+    END AS state_name
+FROM your_table
+WHERE city_column IS NOT NULL;
+
+-- Alternative approach using REGEXP for fuzzy matching
+-- Uncomment and modify as needed for approximate matching
+
+/*
+SELECT 
+    city_column,
+    CASE 
+        WHEN REGEXP_LIKE(UPPER(city_column), '.*(MUMBAI|PUNE|NAGPUR|NASHIK|AURANGABAD).*') THEN 'Maharashtra'
+        WHEN REGEXP_LIKE(UPPER(city_column), '.*(BANGALORE|MYSORE|HUBLI|MANGALORE).*') THEN 'Karnataka'
+        WHEN REGEXP_LIKE(UPPER(city_column), '.*(CHENNAI|COIMBATORE|MADURAI|SALEM).*') THEN 'Tamil Nadu'
+        -- Add more REGEXP patterns as needed
+        ELSE 'Unknown'
+    END AS state_name
+FROM your_table;
+*/
